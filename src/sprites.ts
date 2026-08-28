@@ -13,18 +13,22 @@ export interface SheetSpec {
 export const SHEETS: Record<string, SheetSpec> = {
   // 默认模式的两套猫：双击角色在两者之间来回切换。
   // 两张图都是 7 列 4 行、单格尺寸一致，换装时窗口尺寸不会跳。
+  // 猫的单帧只有 240px（其余序列 2x 超采样后 280px），保持 PNG 原样。
   cat_normal: { file: 'yuexincat_spritesheet_transparent.png', cols: 7, rows: 4, size: 140 },
   cat_rest: { file: 'yuexincat_rest_spritesheet_transparent.png', cols: 7, rows: 4, size: 140 },
-  lulu_hoop: { file: 'lulu_hoop_spritesheet_transparent.png', cols: 7, rows: 9, size: 140 },
-  lulu_anger: { file: 'lulu_anger_spritesheet_transparent.png', cols: 7, rows: 10, size: 140 },
-  lulu_cry: { file: 'lulu_cry_spritesheet_transparent.png', cols: 7, rows: 4, size: 140 },
-  lulu_pleasant: { file: 'lulu_pleasant_spritesheet_transparent.png', cols: 7, rows: 3, size: 140 },
-  lulu_sad: { file: 'lulu_sad_spritesheet_transparent.png', cols: 7, rows: 3, size: 140 },
-  lulu_salute: { file: 'lulu_salute_spritesheet_transparent.png', cols: 7, rows: 3, size: 140 },
-  lulu_shake: { file: 'lulu_shake_spritesheet_transparent.png', cols: 7, rows: 1, size: 140 },
-  lulu_stiff: { file: 'lulu_stiff_sway_spritesheet_transparent.png', cols: 7, rows: 2, size: 140 },
-  lulu_sway: { file: 'lulu_sway_spritesheet_transparent.png', cols: 7, rows: 1, size: 140 },
-  lulu_tickle: { file: 'lulu_tickle_spritesheet_transparent.png', cols: 7, rows: 4, size: 140 },
+  // 噜噜序列：降采样到单帧 280px（显示 140 的 2 倍超采样）+ WebP q90，
+  // 由 scripts/convert-sprites.mjs 生成；原 PNG 备份在 assets-png-backup/。
+  // 行列数不变（一律 7 列），canvas 绘制按 naturalWidth/cols 自适应。
+  lulu_hoop: { file: 'lulu_hoop_spritesheet_transparent.webp', cols: 7, rows: 9, size: 140 },
+  lulu_anger: { file: 'lulu_anger_spritesheet_transparent.webp', cols: 7, rows: 10, size: 140 },
+  lulu_cry: { file: 'lulu_cry_spritesheet_transparent.webp', cols: 7, rows: 4, size: 140 },
+  lulu_pleasant: { file: 'lulu_pleasant_spritesheet_transparent.webp', cols: 7, rows: 3, size: 140 },
+  lulu_sad: { file: 'lulu_sad_spritesheet_transparent.webp', cols: 7, rows: 3, size: 140 },
+  lulu_salute: { file: 'lulu_salute_spritesheet_transparent.webp', cols: 7, rows: 3, size: 140 },
+  lulu_shake: { file: 'lulu_shake_spritesheet_transparent.webp', cols: 7, rows: 1, size: 140 },
+  lulu_stiff: { file: 'lulu_stiff_sway_spritesheet_transparent.webp', cols: 7, rows: 2, size: 140 },
+  lulu_sway: { file: 'lulu_sway_spritesheet_transparent.webp', cols: 7, rows: 1, size: 140 },
+  lulu_tickle: { file: 'lulu_tickle_spritesheet_transparent.webp', cols: 7, rows: 4, size: 140 },
 }
 
 export function assetUrl(file: string): string {

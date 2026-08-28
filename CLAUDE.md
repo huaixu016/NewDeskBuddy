@@ -45,7 +45,7 @@ cargo check            # 在 src-tauri/ 下检查 Rust 侧
 - **canvas 而非 CSS background**：两张雪碧图互换时合成器可能出现一帧透明闪屏，canvas `drawImage` 同步出帧无此问题。
 - **`animator` 的作废机制**：每次 `play()` 递增 `playbackId`；`playOnce` 的结束回调只在 `playbackId` 未变时触发。切序列/重复播放都会自动作废旧回调，改动时不要破坏这个链。
 - **WebView2 大图 `img.decode()` 偶发失败**（文件本身完好）。`sprites.ts` 的预载：先等 `onload`，decode 失败重试 3 次，仍失败但像素已加载（`complete && naturalWidth>0`）照样入缓存（drawImage 绘制时同步解码）。必须**逐张顺序解码**，Promise.all 并发会让部分图片被判失败。播放失败时 `playLuluReaction` 会调 `retryLoad()` 后台补载，下次触发同一动作即可恢复。
-- 雪碧图行列数在 `sprites.ts` 声明，须与实际 PNG 尺寸匹配（已核对过一遍；`lulu_hoop` 每帧 447×450 略非正方形，canvas 拉伸补齐，无视觉影响）。
+- 雪碧图行列数在 `sprites.ts` 声明，须与实际图片尺寸匹配。噜噜序列是降采样 + WebP 产物：单帧 280px（显示 140 的 2 倍超采样）、q90，由 `node scripts/convert-sprites.mjs` 生成（依赖 devDependency sharp）；原 PNG 备份在 `assets-png-backup/`。两套猫单帧只有 240px，保持 PNG 原样。换新素材时重跑脚本即可，行列数不变、代码无需改动。
 
 ### 窗口与交互（app.ts / window.ts）
 
