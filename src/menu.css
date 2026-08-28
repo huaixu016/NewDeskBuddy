@@ -1,0 +1,151 @@
+/**
+ * 独立菜单窗口的样式：白底黑字的经典菜单风。
+ * 「噜噜互动」悬停时从右侧弹出子菜单。
+ */
+
+html {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* body 不能裁剪：右弹的子菜单是绝对定位、不撑高父级，body 高度只有
+ * 面板那么高，body 再 overflow:hidden 会把子菜单超出面板底边的部分裁掉。
+ * 视口层（html）裁剪就够——窗口尺寸已按内容算好。 */
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+#menu-root {
+  padding: 4px;
+  /* 收紧到内容宽度：面板不能撑满窗口，否则量出的窗口尺寸和面板互相
+   * 拉扯（面板变宽 → 子菜单锚点右移 → 又超窗口）。 */
+  width: fit-content;
+}
+
+/* 子菜单往左弹时（屏幕右缘放不下），面板整体推到窗口右缘，
+ * 左侧的透明区域留给左弹的子菜单。 */
+#menu-root.submenu-left {
+  margin-left: auto;
+}
+
+.menu-panel {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  color: #1f1f24;
+  font-size: 13px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.menu-item:hover {
+  background: #f1f1f4;
+}
+
+.menu-item-checked {
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+.menu-item-checked::after {
+  content: '✓';
+  margin-left: auto;
+  padding-left: 16px;
+  font-weight: 700;
+}
+
+.menu-item-disabled {
+  color: #9aa0a6;
+  cursor: default;
+}
+
+.menu-item-disabled:hover {
+  background: transparent;
+}
+
+.menu-item-danger:hover {
+  background: #d93025;
+  color: #fff;
+}
+
+.menu-separator {
+  height: 1px;
+  background: #e6e6ea;
+  margin: 5px 10px;
+}
+
+/* 噜噜互动：悬停展开的右侧弹出子菜单 */
+.menu-group {
+  position: relative;
+}
+
+.menu-group-title {
+  cursor: default;
+}
+
+.menu-group-title:hover {
+  background: transparent;
+}
+
+.menu-arrow {
+  margin-left: auto;
+  padding-left: 16px;
+  color: #9aa0a6;
+  font-size: 11px;
+}
+
+.menu-sub {
+  display: none;
+  /* 紧贴分组右缘（不留缝）：留缝会让鼠标划过缝隙时 hover 丢失、子菜单闪没。 */
+  position: absolute;
+  left: 100%;
+  /* 与面板顶边对齐：抵消面板 padding 6px。 */
+  top: -6px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  z-index: 10;
+}
+
+/* 屏幕右缘放不下时往左弹，箭头也跟着掉头。 */
+#menu-root.submenu-left .menu-sub {
+  left: auto;
+  right: 100%;
+}
+
+#menu-root.submenu-left .menu-arrow {
+  transform: scaleX(-1);
+}
+
+.menu-group:hover .menu-sub,
+.menu-group:focus-within .menu-sub {
+  display: block;
+}
+
+/* 量尺寸时强制可见：窗口必须罩住子菜单展开后的范围，否则会被裁掉。 */
+#menu-root.measuring .menu-sub {
+  display: block;
+}

@@ -1,0 +1,5 @@
+# 运行期由应用自己写出的文件：不能让 tauri dev 的文件监视器看到，
+# 否则每次写日志/存配置都会触发 “Rebuilding application...” 把宠物杀掉重启
+# （表现为噜噜模式一切动作就“闪退重新初始化”）。
+/debug.log
+/config.txt
