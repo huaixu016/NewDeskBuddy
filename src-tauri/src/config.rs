@@ -32,6 +32,8 @@ fn default_config() -> BTreeMap<String, String> {
         ("work_target_weekday", "5"),
         ("work_earn_mode", "auto"),
         ("work_fixed_earn", "0"),
+        // 工作配置是否已保存过：首次切工作模式会弹配置窗，保存过一次就不再打扰。
+        ("work_config_initialized", "false"),
         ("work_scale", "0.65"),
         ("work_opacity", "1"),
         ("last_period_start", ""),
@@ -66,6 +68,7 @@ const BOOL_KEYS: &[&str] = &[
     "period_visible",
     "cat_resting",
     "debug_log",
+    "work_config_initialized",
 ];
 
 /// 配置在内存中的形态：全部按字符串保存，类型语义由上面的常量表约束。

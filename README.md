@@ -1,14 +1,15 @@
 # NewDeskBuddy
 
-DeskBuddy 的 Tauri 重构版。当前阶段实现了原版三种模式中的两种：
+DeskBuddy 的 Tauri 重构版。原版三种模式均已迁移：
 
 - **🐱 默认模式**：月薪猫待机动画，双击角色在正常猫与睡觉猫之间切换（选择落盘），全局键盘按键计数，拖拽移动。
 - **🐾 噜噜模式**：水豚噜噜待机摇摆，单击/双击触发随机反应动画与气泡，拖拽时僵硬挣扎，拖到屏幕顶部释放触发 OutBounce 降落动画，随机心情定时器（20–40 秒自动切情绪）。
-- 工作模式尚未迁移，菜单中暂不出现。
+- **🖥️ 工作模式**：悬浮工作面板（下班倒计时 / 信息卡 / 备忘录 / 计划安排 / 待办统计），日赚金额实时累计（按月薪资与计薪参数自动计算，或固定金额），生理期周期跟踪（卡片可隐藏）。首次切换时填写一次工作配置（默认值即可保存使用），之后直接进入；右键面板可新增/编辑备忘录与计划（各上限 50 条）、修改配置；Ctrl + 滚轮调透明度，四角拖拽等比缩放，滚轮翻页。
 
 ## 与原版的关系
 
 - 配置沿用同一份 `config.txt`（`key=value` 文本格式），与 Python 版读写兼容：键名、默认值、布尔/数值容错规则一致，两版可以交替使用同一份配置。
+- 工作模式数据（`memos.json` / `plans.json`）与 config.txt 同目录，格式与 Python 版完全兼容，两版可以交替读写同一份数据。
 - 键盘计数规则一致：全局钩子统计，长按自动重复只计一次，从启动开始计数、不持久化总次数。
 - 单击/双击 250ms 判定窗口、8px 拖拽阈值、80px 顶部降落阈值、气泡文案池、心情定时器区间均与原版对齐。
 
@@ -37,27 +38,33 @@ npm run tauri build
 
 ```text
 NewDeskBuddy/
-├── index.html              # 入口页面（透明窗口内容）
+├── index.html              # 宠物窗入口（透明窗口内容）
+├── menu.html               # 右键菜单悬浮窗入口
+├── work.html               # 工作模式面板入口
+├── dialog.html             # 弹窗窗入口（工作配置/备忘录/计划/生理期共用）
 ├── package.json
-├── vite.config.js
-├── public/assets/          # 雪碧图素材（与原版 assets/ 同一批文件）
+├── vite.config.js          # 四入口构建（index/menu/work/dialog）
+├── public/assets/          # 雪碧图素材 + work.gif
 ├── src/
 │   ├── main.ts             # 启动入口
-│   ├── app.ts              # 模式状态机 + 鼠标交互 + 布局
+│   ├── app.ts              # 模式状态机 + 鼠标交互 + 工作模式数据中枢
 │   ├── config.ts           # 配置前端包装（后端负责 config.txt 读写）
 │   ├── sprites.ts          # 雪碧图资源声明（文件、行列、尺寸）
-│   ├── animator.ts         # CSS 逐帧动画器
+│   ├── animator.ts         # canvas 逐帧动画器
 │   ├── bubble.ts           # 上浮淡出气泡
-│   ├── menu.ts             # 右键菜单
+│   ├── menu.ts / menu-window.ts / menu.css   # 右键菜单悬浮窗
 │   ├── window.ts           # 窗口拖拽/缩放/降落动画
+│   ├── work.ts / work.css / work-logic.ts    # 工作面板视图层 + 纯逻辑
+│   ├── dialog.ts / dialog.css                # 四合一弹窗窗
 │   └── style.css
 └── src-tauri/
     ├── Cargo.toml
     ├── tauri.conf.json     # 透明、无边框、置顶、跳过任务栏
     ├── icons/app.ico
     └── src/
-        ├── main.rs         # Tauri 入口、窗口初始定位
+        ├── main.rs         # Tauri 入口、常驻窗口创建（menu/work/dialog）
         ├── config.rs       # config.txt 读写与类型容错
+        ├── store.rs        # memos.json / plans.json 读写与收敛
         └── keyboard.rs     # WH_KEYBOARD_LL 全局键盘计数
 ```
 

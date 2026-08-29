@@ -28,6 +28,8 @@ export const DEFAULTS: Record<string, string> = {
   work_target_weekday: '5',
   work_earn_mode: 'auto',
   work_fixed_earn: '0',
+  // 工作配置是否保存过：保存过一次后切工作模式不再弹配置窗。
+  work_config_initialized: 'false',
   work_scale: '0.65',
   work_opacity: '1',
   // 生理期参数：起始日为空表示尚未配置，卡片显示「待设置」。

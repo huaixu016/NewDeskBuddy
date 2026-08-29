@@ -29,13 +29,13 @@ body {
   transform-origin: 0 0;
 }
 
-/* 面板本体：外圈 18px 留白给阴影 */
+/* 面板本体：上/左/右只留 4px 贴边，底部 18px 保留（四角缩放热区向内延伸，
+ * 外侧留白缩小不影响缩放手感） */
 #panel {
-  margin: 18px;
+  margin: 4px 4px 18px 4px;
   padding: 22px 26px;
   border-radius: 26px;
   background: rgba(255, 255, 255, 247);
-  box-shadow: 0 8px 34px rgba(0, 0, 0, 55);
   display: flex;
   align-items: center;
   gap: 20px;
@@ -114,7 +114,6 @@ body {
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   cursor: pointer;
   overflow: hidden;
 }
@@ -141,6 +140,8 @@ body {
 }
 
 .todo-value {
+  /* 标题置顶后，数值与提示仍贴卡片底部 */
+  margin-top: auto;
   font-size: 26px;
   font-weight: bold;
   line-height: 1.1;
@@ -190,9 +191,12 @@ body {
   flex-direction: row;
 }
 
-/* 页面统一固定为单页大小（与 viewport 一致） */
+/* 页面统一固定为单页大小（与 viewport 一致）。
+ * 必须 border-box：列表页自带 padding，content-box 会把盒子撑出固定页高，
+ * 渗进下方相邻页（备忘录盒盖住计划安排页上沿）。 */
 .page {
   flex: none;
+  box-sizing: border-box;
 }
 
 /* 左侧角色区域：页宽 = 整列宽度，页高 = GIF 尺寸 */
@@ -310,16 +314,31 @@ body {
 .list-page {
   border-radius: 18px;
   background: #f8f9f4;
-  padding: 14px 10px 14px 16px;
+  /* 标题区压紧：上边距和行距收小，把纵向空间留给列表 */
+  padding: 8px 10px 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
+}
+
+/* 计划页底色与待办统计「计划安排」卡片一致（淡蓝） */
+#plan-page {
+  background: #e9f0fa;
+}
+
+#plan-page .list-divider {
+  background: #d7e1f0;
+}
+
+#plan-page .list-empty {
+  color: #9aa8bc;
 }
 
 .list-title {
   font-size: 15px;
   font-weight: bold;
   color: #6b7076;
+  line-height: 1.2;
 }
 
 .list-divider {
@@ -332,8 +351,13 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  /* 细滚动条 */
+  /* 细滚动条：滑块默认透明（滑槽宽度恒定，内容不因显隐抖动），
+   * 滚动时 JS 加 .scrolling 让滑块现形，停止 600ms 后隐去。 */
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.rows.scrolling {
   scrollbar-color: #d8dde2 transparent;
 }
 
@@ -342,8 +366,12 @@ body {
 }
 
 .rows::-webkit-scrollbar-thumb {
-  background: #d8dde2;
+  background: transparent;
   border-radius: 3px;
+}
+
+.rows.scrolling::-webkit-scrollbar-thumb {
+  background: #d8dde2;
 }
 
 .rows::-webkit-scrollbar-track {
@@ -409,11 +437,12 @@ body {
   text-decoration: line-through;
 }
 
-/* 计划行：上下两行，时间独占一行 */
+/* 计划行：上下两行，时间独占一行。
+ * 行间用明显的长横线分隔（淡蓝页底上要能看清每行边界）。 */
 .plan-row {
-  height: 60px;
-  padding: 5px 4px;
-  border-bottom: 1px solid #edf0f1;
+  height: 48px;
+  padding: 3px 4px;
+  border-bottom: 1px solid #c5d4ec;
   box-sizing: border-box;
   cursor: pointer;
 }

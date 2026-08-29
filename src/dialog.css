@@ -22,14 +22,13 @@ body {
 
 #dialog-root {
   position: relative;
-  padding: 20px;
+  padding: 12px;
 }
 
 .dialog-container {
   background: rgba(255, 255, 255, 246);
   border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 50);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -62,9 +61,9 @@ body {
 }
 
 .dialog-header {
+  /* 弹窗固定居中于面板，不可拖动 */
   display: flex;
   align-items: center;
-  cursor: move;
 }
 
 .dialog-title {
@@ -178,27 +177,6 @@ input[type='number'] {
   width: 110px;
 }
 
-/* 单选组 */
-.radio-group {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.radio-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 16px;
-}
-
 /* 开关 */
 .switch {
   position: relative;
@@ -243,23 +221,51 @@ input[type='number'] {
   transform: translateX(18px);
 }
 
-/* 滑块 */
-input[type='range'] {
+/* 自制滑块（面板透明度）：原生 range 圆点到不了轨道两端。
+ * --ratio ∈ [0,1] 为圆点位置；圆点 12px，行程 = 容器宽 - 12px，
+ * 两端时圆点外缘与轨道端点齐平，填充精确止于圆点中心。 */
+.range-slider {
+  position: relative;
   flex: 1;
-  -webkit-appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: #e3e7ec;
+  height: 18px;
   cursor: pointer;
+  touch-action: none;
+  --ratio: 0.5;
 }
 
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 9px;
+.range-slider .rs-track,
+.range-slider .rs-fill {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+}
+
+.range-slider .rs-track {
+  left: 0;
+  right: 0;
+  background: #e3e7ec;
+}
+
+.range-slider .rs-fill {
+  left: 0;
+  width: calc(var(--ratio) * (100% - 12px) + 6px);
+  background: #9cc8f2;
+}
+
+.range-slider .rs-thumb {
+  position: absolute;
+  top: 50%;
+  /* 中心走 6px → (100% - 6px)：两端时外缘与轨道端点齐平 */
+  left: calc(var(--ratio) * (100% - 12px) + 6px);
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
   background: #fff;
-  border: 2px solid var(--accent);
+  border: 2px solid #4a90d9;
+  box-sizing: border-box;
 }
 
 .range-hint {
@@ -283,6 +289,188 @@ input[type='range']::-webkit-slider-thumb {
 .section-hint {
   color: #9aa1a8;
   font-size: 12px;
+}
+
+/* 板块标题：左侧淡蓝装饰竖条（工作配置弹窗分四板块） */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #4a5057;
+  margin-top: 4px;
+}
+
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: #9cc8f2;
+}
+
+/* 板块标题下的补充说明 */
+.section-desc {
+  color: #9aa1a8;
+  font-size: 11px;
+  margin: -3px 0 0 11px;
+}
+
+/* 双列字段格：每格上标签下控件，single 时独占整行 */
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.field-grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* 四列窄格（上下班时间），压掉一行高度 */
+.field-grid.quad {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px 8px;
+}
+
+.field-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field-cell-label {
+  color: #8a9096;
+  font-size: 12px;
+}
+
+.field-cell-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field-cell-body input,
+.field-cell-body select {
+  flex: 1;
+}
+
+.field-cell-body input[type='number'] {
+  flex: none;
+}
+
+/* 单选卡片（日赚金额 / 休息制度）：左侧圆点，右侧名称 + 说明 */
+.radio-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.radio-cards.single {
+  grid-template-columns: 1fr;
+}
+
+.radio-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.radio-card:has(input:checked) {
+  border-color: #9cc8f2;
+  background: #f3f9fe;
+}
+
+.radio-card input {
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: #4a90d9;
+}
+
+.radio-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.radio-card-name {
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radio-card-hint {
+  font-size: 11px;
+  color: #9aa1a8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 工作配置弹窗整体压缩：字段多，纵向要省着用 */
+.dialog-container.config {
+  width: 440px;
+  padding: 12px 16px;
+}
+
+/* 工作配置没有校验提示，预留的提示行是纯空白，去掉 */
+.dialog-container.config .dialog-hint {
+  display: none;
+}
+
+.dialog-container.config .section-title {
+  margin-top: 0;
+}
+
+.dialog-container.config .field-grid {
+  gap: 6px 12px;
+}
+
+.dialog-container.config .field-cell {
+  gap: 3px;
+}
+
+.dialog-container.config .field-cell-label {
+  font-size: 11px;
+}
+
+.dialog-container.config .field-cell-body input,
+.dialog-container.config .field-cell-body select {
+  padding: 4px 8px;
+}
+
+.dialog-container.config .radio-cards {
+  gap: 6px;
+}
+
+.dialog-container.config .radio-card {
+  padding: 5px 8px;
+  gap: 6px;
+}
+
+.dialog-container.config .radio-card-name {
+  font-size: 12px;
+}
+
+.dialog-container.config .radio-card-hint {
+  font-size: 10px;
+}
+
+.dialog-container.config .btn {
+  padding: 7px 24px;
 }
 
 .dialog-hint {
@@ -415,4 +603,38 @@ input[type='range']::-webkit-slider-thumb {
 .field-tip {
   color: #b4b9be;
   font-size: 12px;
+}
+
+/* 文本框下方的提示行：左侧操作提示，右侧错误信息（右下角） */
+.field-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-tip-row .spacer {
+  flex: 1;
+}
+
+.field-error {
+  color: #d63031;
+  font-size: 12px;
+  text-align: right;
+}
+
+/* 贴在字段行下方的右对齐错误行：错误为空时整行不占位 */
+.field-error-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+
+.field-error-row:has(.field-error:empty) {
+  display: none;
+}
+
+/* 备忘录 / 计划弹窗的校验提示已挪到文本框右下角，
+ * 底部预留的提示行是纯空白，不再占位。 */
+.dialog-container:not(.config):not(.period) .dialog-hint {
+  display: none;
 }

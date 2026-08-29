@@ -78,7 +78,7 @@ const RESIZE_ZONE = 26
 const LOCAL_SCROLL_ROWS = 2
 /** 备忘录 / 计划行的设计稿行高，页内滚动步长用。 */
 const MEMO_ROW_H = 42
-const PLAN_ROW_H = 60
+const PLAN_ROW_H = 48
 
 /** 右侧分页：信息卡 0 / 备忘录 1 / 计划 2。 */
 const PAGE_CARDS = 0
@@ -138,8 +138,9 @@ let opacityHintTimer: number | null = null
 function measureDesign(): void {
   const prev = zoomEl.style.transform
   zoomEl.style.transform = 'none'
-  designW = Math.ceil(zoomEl.offsetWidth + 36) // 36 = 面板 margin(18×2)，offsetWidth 不含 margin
-  designH = Math.ceil(zoomEl.offsetHeight + 36)
+  // margin 上/左/右 4 + 底 18 = 26；offsetWidth 不含 margin。
+  designW = Math.ceil(zoomEl.offsetWidth + 8)
+  designH = Math.ceil(zoomEl.offsetHeight + 22)
   zoomEl.style.transform = prev
 }
 
@@ -780,6 +781,16 @@ function syncGif(): void {
 // ---------------------------------------------------------------------------
 
 function bindEvents(): void {
+  // 列表滚动条自动隐藏：滚动中现形（含滚轮代滚的程序滚动），停止 600ms 后隐去。
+  // rows 容器本身不重建（innerHTML 只换子行），监听一次即可。
+  for (const target of [memoRowsEl, planRowsEl]) {
+    let timer: number | null = null
+    target.addEventListener('scroll', () => {
+      target.classList.add('scrolling')
+      if (timer !== null) window.clearTimeout(timer)
+      timer = window.setTimeout(() => target.classList.remove('scrolling'), 600)
+    })
+  }
   window.addEventListener('pointerdown', (e) => onPointerDown(e))
   window.addEventListener('pointermove', (e) => void onPointerMove(e))
   window.addEventListener('pointerup', (e) => void onPointerUp(e))

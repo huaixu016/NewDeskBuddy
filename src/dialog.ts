@@ -10,6 +10,7 @@
  */
 import { listen } from '@tauri-apps/api/event'
 import { emit } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
 import * as logic from './work-logic'
@@ -138,30 +139,7 @@ function makeFrame(kind: DialogKind, title: string): DialogFrame {
   }
   closeBtn.addEventListener('click', close)
 
-  // 标题栏拖动弹窗。
-  header.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return
-    const startScreen = { x: e.screenX, y: e.screenY }
-    let startPos: { x: number; y: number } | null = null
-    const move = (ev: PointerEvent) => {
-      void (async () => {
-        if (!startPos) {
-          const pos = await win.outerPosition()
-          startPos = { x: pos.x, y: pos.y }
-        }
-        await win.setPosition(new PhysicalPosition(
-          startPos.x + (ev.screenX - startScreen.x),
-          startPos.y + (ev.screenY - startScreen.y),
-        ))
-      })()
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  })
+  // 弹窗固定以面板中心定位（dialog-state 的 cx/cy），不支持拖动。
 
   return { container, body, hint, close }
 }
@@ -211,28 +189,43 @@ const WEEKDAY_NAMES = logic.WEEKDAY_NAMES
 function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   const cfg = state.config
   const body = frame.body
+  // 表单较长，行距压到 7px（makeFrame 默认 12px）。
+  body.style.gap = '7px'
 
-  const addRow = (label: string, ...controls: HTMLElement[]) => {
-    const { row, body: rowBody } = makeFormRow(label)
-    for (const control of controls) rowBody.appendChild(control)
-    body.appendChild(row)
-    return row
+  // 板块标题：左侧淡蓝装饰竖条，desc 为紧贴标题下方的补充说明。
+  const addSection = (title: string, desc?: string) => {
+    body.appendChild(el('div', 'section-title', title))
+    if (desc) body.appendChild(el('div', 'section-desc', desc))
   }
+
+  // 双列字段格：每格「上标签、下控件」，single 时独占整行。
+  const fieldCell = (label: string, ...controls: HTMLElement[]) => {
+    const cell = el('div', 'field-cell')
+    cell.appendChild(el('div', 'field-cell-label', label))
+    const inner = el('div', 'field-cell-body')
+    for (const control of controls) inner.appendChild(control)
+    cell.appendChild(inner)
+    return cell
+  }
+  const addGrid = (cells: HTMLElement[], single = false) => {
+    const grid = el('div', 'field-grid' + (single ? ' single' : ''))
+    for (const cell of cells) grid.appendChild(cell)
+    body.appendChild(grid)
+  }
+
+  // ---- 1. 基础设置 ----
+  addSection('基础设置')
 
   const offTime = el('input') as HTMLInputElement
   offTime.type = 'time'
   offTime.value = cfgStr(cfg, 'work_off_time', '17:00')
-  addRow('下班时间:', offTime)
 
   const payday = makeNumber(Math.round(cfgNum(cfg, 'work_payday', 15)), 1, 31, 1)
-  addRow('发薪日:', payday, el('span', 'form-hint', ' 号'))
 
   const festivalName = el('input') as HTMLInputElement
   festivalName.type = 'text'
   festivalName.maxLength = 8
   festivalName.value = cfgStr(cfg, 'work_festival_name')
-  festivalName.style.flex = '1'
-  addRow('节日名称:', festivalName)
 
   // 节日日期：空 = 未设置，按钮在「设置 / 清空」间切换。
   const festivalDate = el('input') as HTMLInputElement
@@ -249,7 +242,6 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   })
   festivalDate.value = cfgStr(cfg, 'work_festival_date')
   syncFestival()
-  addRow('节日日期:', festivalDate, festivalBtn)
 
   const weekday = el('select') as HTMLSelectElement
   for (let i = 0; i < WEEKDAY_NAMES.length; i++) {
@@ -259,7 +251,6 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   }
   const weekdayValue = Math.round(cfgNum(cfg, 'work_target_weekday', 5))
   weekday.value = String(Math.min(7, Math.max(1, weekdayValue)))
-  addRow('盼望的日子:', weekday)
 
   // 生理期卡片开关。
   const periodHint = el('span', 'form-hint')
@@ -267,110 +258,140 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
     periodHint.textContent = checked ? '面板中显示' : '面板中隐藏'
   })
   periodHint.textContent = cfgStr(cfg, 'period_visible', 'false') === 'true' ? '面板中显示' : '面板中隐藏'
-  addRow('生理期卡片:', periodSwitch, periodHint)
 
-  // 面板透明度滑块（百分比整数）。
-  const opacityHint = el('span', 'range-hint')
-  const opacitySlider = el('input') as HTMLInputElement
-  opacitySlider.type = 'range'
-  opacitySlider.min = '30'
-  opacitySlider.max = '100'
-  opacitySlider.step = '5'
-  opacitySlider.value = String(Math.round(cfgNum(cfg, 'work_opacity', 1) * 100))
-  opacityHint.textContent = `${opacitySlider.value}%`
-  opacitySlider.addEventListener('input', () => {
-    opacityHint.textContent = `${opacitySlider.value}%`
-  })
-  addRow('面板透明度:', opacitySlider, opacityHint)
+  addGrid([
+    fieldCell('下班时间', offTime),
+    fieldCell('发薪日（每月）', payday, el('span', 'form-hint', ' 号')),
+    fieldCell('节日名称', festivalName),
+    fieldCell('节日日期', festivalDate, festivalBtn),
+    fieldCell('盼望星期', weekday),
+    fieldCell('生理期卡片', periodSwitch, periodHint),
+  ])
 
-  // ---- 日赚金额 ----
+  // ---- 2. 薪资计算 ----
+  addSection('薪资计算')
+
+  // 日赚金额：两个单选卡片，左圆点、右名称（说明文字在名称下面）。
   const earnRadios: Record<string, HTMLInputElement> = {}
-  const earnGroup = el('div', 'radio-group')
-  for (const [value, text] of [
-    ['auto', '自动累计（按下方计薪参数实时计算）'],
-    ['fixed', '固定金额'],
-  ] as Array<[string, string]>) {
-    const label = el('label')
+  const earnCards = el('div', 'radio-cards')
+  for (const [value, name, hint] of [
+    ['auto', '自动累计', '按计薪参数实时计算'],
+    ['fixed', '固定金额', '每月固定数值'],
+  ] as Array<[string, string, string]>) {
+    const card = el('label', 'radio-card')
     const radio = el('input') as HTMLInputElement
     radio.type = 'radio'
     radio.name = 'earn-mode'
     radio.value = value
-    label.appendChild(radio)
-    label.appendChild(el('span', undefined, text))
-    earnGroup.appendChild(label)
+    const text = el('div', 'radio-card-text')
+    text.appendChild(el('div', 'radio-card-name', name))
+    text.appendChild(el('div', 'radio-card-hint', hint))
+    card.appendChild(radio)
+    card.appendChild(text)
+    earnCards.appendChild(card)
     earnRadios[value] = radio
   }
   const isFixed = cfgStr(cfg, 'work_earn_mode', 'auto') === 'fixed'
   earnRadios[isFixed ? 'fixed' : 'auto'].checked = true
-  addRow('日赚金额:', earnGroup)
 
   const salary = makeNumber(cfgNum(cfg, 'salary', 0), 0, 999999, 0.01)
-  salary.style.width = '130px'
-  addRow('月薪资:', salary)
-
   const fixedEarn = makeNumber(cfgNum(cfg, 'work_fixed_earn', 0), 0, 999999, 0.001)
-  fixedEarn.style.width = '130px'
-  addRow('固定日赚:', fixedEarn)
 
-  body.appendChild(el('div', 'section-hint', '以下为「自动累计」的计薪参数'))
+  addGrid([fieldCell('日赚金额', earnCards)], true)
+  addGrid([fieldCell('月薪资', salary), fieldCell('固定日赚', fixedEarn)])
 
-  // 休息制度（2×2 单选）。
+  // ---- 3. 计薪参数 ----
+  addSection('计薪参数', '以下为「自动累计」模式的计算参数')
+
+  // 休息制度：四个单选卡片，两行两列。
   const restRadios: Record<string, HTMLInputElement> = {}
-  const restGrid = el('div', 'radio-grid')
+  const restCards = el('div', 'radio-cards')
   for (const text of REST_TYPES) {
-    const label = el('label')
+    const card = el('label', 'radio-card')
     const radio = el('input') as HTMLInputElement
     radio.type = 'radio'
     radio.name = 'rest-type'
     radio.value = text
-    label.appendChild(radio)
-    label.appendChild(el('span', undefined, text))
-    restGrid.appendChild(label)
+    card.appendChild(radio)
+    card.appendChild(el('div', 'radio-card-name', text))
+    restCards.appendChild(card)
     restRadios[text] = radio
   }
   let restType = cfgStr(cfg, 'rest_type', '双休')
   if (!REST_TYPES.includes(restType)) restType = REST_TYPES[0]
   restRadios[restType].checked = true
-  addRow('休息制度:', restGrid)
+  addGrid([fieldCell('休息制度', restCards)], true)
 
   // 月休息天数：只有「其他」才要填。
   const customRest = makeNumber(cfgNum(cfg, 'custom_rest_days', 0), 0, 31, 1)
-  const customRestRow = addRow('月休息天数:', customRest)
+  const customCell = fieldCell('月休息天数', customRest)
+  addGrid([customCell], true)
   const syncCustomRest = () => {
-    customRestRow.style.display = restRadios['其他'].checked ? '' : 'none'
+    customCell.style.display = restRadios['其他'].checked ? '' : 'none'
   }
   for (const radio of Object.values(restRadios)) {
     radio.addEventListener('change', syncCustomRest)
   }
   syncCustomRest()
 
-  // 上下班时间。
+  // 上下班时间：四个一行，压掉一行高度。
   const timeEdits: Array<[string, HTMLInputElement]> = []
-  for (const [key, label] of [
-    ['am_start', '上午上班:'],
-    ['am_end', '上午下班:'],
-    ['pm_start', '下午上班:'],
-    ['pm_end', '下午下班:'],
-  ] as Array<[string, string]>) {
+  const timeCell = (key: string, label: string) => {
     const input = el('input') as HTMLInputElement
     input.type = 'time'
     input.value = cfgStr(cfg, key, key.endsWith('start') ? (key === 'am_start' ? '09:00' : '13:00') : (key === 'am_end' ? '12:00' : '18:00'))
-    addRow(label, input)
     timeEdits.push([key, input])
+    return fieldCell(label, input)
   }
+  const timeGrid = el('div', 'field-grid quad')
+  timeGrid.appendChild(timeCell('am_start', '上午上班'))
+  timeGrid.appendChild(timeCell('am_end', '上午下班'))
+  timeGrid.appendChild(timeCell('pm_start', '下午上班'))
+  timeGrid.appendChild(timeCell('pm_end', '下午下班'))
+  body.appendChild(timeGrid)
 
   // 选「固定金额」时月薪与整组计薪参数一个都用不上，一起置灰。
   const earnDependent = [salary, customRest, ...timeEdits.map(([, input]) => input)]
   const syncEarnFields = () => {
     const fixed = earnRadios['fixed'].checked
     for (const control of earnDependent) control.disabled = fixed
-    restGrid.style.opacity = fixed ? '0.5' : ''
-    restGrid.style.pointerEvents = fixed ? 'none' : ''
+    restCards.style.opacity = fixed ? '0.5' : ''
+    restCards.style.pointerEvents = fixed ? 'none' : ''
   }
   for (const radio of Object.values(earnRadios)) {
     radio.addEventListener('change', syncEarnFields)
   }
   syncEarnFields()
+
+  // ---- 4. 外观 ----
+  addSection('外观')
+
+  // 面板透明度：自制滑块（原生 range 的圆点到不了轨道两端，留缝不严谨）。
+  const opacityHint = el('span', 'range-hint')
+  const slider = el('div', 'range-slider')
+  slider.appendChild(el('div', 'rs-track'))
+  slider.appendChild(el('div', 'rs-fill'))
+  slider.appendChild(el('div', 'rs-thumb'))
+  let opacityValue = Math.round(cfgNum(cfg, 'work_opacity', 1) * 100)
+  const syncOpacity = () => {
+    opacityHint.textContent = `${opacityValue}%`
+    slider.style.setProperty('--ratio', String((opacityValue - 30) / 70))
+  }
+  const setOpacity = (clientX: number) => {
+    const rect = slider.getBoundingClientRect()
+    const raw = 30 + Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * 70
+    opacityValue = Math.round(raw / 5) * 5
+    syncOpacity()
+  }
+  slider.addEventListener('pointerdown', (e) => {
+    slider.setPointerCapture(e.pointerId)
+    setOpacity(e.clientX)
+  })
+  slider.addEventListener('pointermove', (e) => {
+    if (e.buttons === 1) setOpacity(e.clientX)
+  })
+  syncOpacity()
+  addGrid([fieldCell('面板透明度', slider, opacityHint)], true)
 
   const buttons = el('div', 'dialog-buttons')
   const saveBtn = el('button', 'btn btn-primary', '✨ 保存配置') as HTMLButtonElement
@@ -386,7 +407,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
       work_festival_date: festivalDate.value,
       work_target_weekday: weekday.value,
       period_visible: String(periodSwitch.querySelector('input')!.checked),
-      work_opacity: String(Math.round(Number(opacitySlider.value) / 100 * 100) / 100),
+      work_opacity: String(Math.round(opacityValue) / 100),
       work_earn_mode: earnRadios['fixed'].checked ? 'fixed' : 'auto',
       work_fixed_earn: fixedEarn.value || '0',
       salary: salary.value || '0',
@@ -424,7 +445,13 @@ function buildMemo(frame: DialogFrame, state: DialogState): void {
   if (memo) textEdit.value = memo.text
   body.appendChild(textEdit)
 
-  body.appendChild(el('div', 'field-tip', 'Enter 换行，Ctrl + Enter 直接保存'))
+  // 提示行：左侧操作提示，右侧「不能为空」错误（文本框右下角）。
+  const tipRow = el('div', 'field-tip-row')
+  tipRow.appendChild(el('div', 'field-tip', 'Enter 换行，Ctrl + Enter 直接保存'))
+  tipRow.appendChild(el('div', 'spacer'))
+  const textError = el('div', 'field-error')
+  tipRow.appendChild(textError)
+  body.appendChild(tipRow)
 
   const doneHint = el('span', 'form-hint')
   const doneSwitch = makeSwitch(!!memo?.done, (checked) => {
@@ -441,6 +468,8 @@ function buildMemo(frame: DialogFrame, state: DialogState): void {
       textEdit.value = textEdit.value.slice(0, MEMO_TEXT_MAX)
     }
     countLabel.textContent = `${textEdit.value.length}/${MEMO_TEXT_MAX}`
+    // 输入即清掉错误提示，不再指着旧状态。
+    textError.textContent = ''
   }
   textEdit.addEventListener('input', limitText)
   limitText()
@@ -462,7 +491,7 @@ function buildMemo(frame: DialogFrame, state: DialogState): void {
 
   const save = () => {
     if (!textEdit.value.trim()) {
-      showHint(frame, '备忘内容不能为空。')
+      textError.textContent = '备忘内容不能为空。'
       textEdit.focus()
       return
     }
@@ -487,15 +516,43 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
   const plan = state.plan ?? null
   const body = frame.body
 
-  const titleEdit = el('input') as HTMLInputElement
-  titleEdit.type = 'text'
-  titleEdit.maxLength = 40
+  // 事项：与备忘录一致的大文本框（多行输入，行内只显示压平后的单行）。
+  // 40 与 Rust store 的 PLAN_TITLE_MAX 一致，落盘时会压平换行。
+  const TITLE_MAX = 40
+  const captionRow = makeFormRow()
+  captionRow.body.appendChild(el('span', 'form-hint', '事项内容'))
+  const countLabel = el('span', 'count-label')
+  captionRow.body.appendChild(el('div', 'spacer'))
+  captionRow.body.appendChild(countLabel)
+  captionRow.row.classList.add('stacked')
+  body.appendChild(captionRow.row)
+
+  const titleEdit = el('textarea') as HTMLTextAreaElement
+  titleEdit.rows = 3
+  titleEdit.style.height = '66px'
   titleEdit.placeholder = '例如：站会 · 会议室 A'
-  titleEdit.style.flex = '1'
+  titleEdit.style.resize = 'none'
   if (plan) titleEdit.value = plan.title
-  const titleRow = makeFormRow('事项:')
-  titleRow.body.appendChild(titleEdit)
-  body.appendChild(titleRow.row)
+  body.appendChild(titleEdit)
+  // 提示行错误信息：声明必须先于 limitTitle 的首次调用（TDZ）。
+  const titleError = el('div', 'field-error')
+  const limitTitle = () => {
+    if (titleEdit.value.length > TITLE_MAX) {
+      titleEdit.value = titleEdit.value.slice(0, TITLE_MAX)
+    }
+    countLabel.textContent = `${titleEdit.value.length}/${TITLE_MAX}`
+    // 输入即清掉错误提示，不再指着旧状态。
+    titleError.textContent = ''
+  }
+  titleEdit.addEventListener('input', limitTitle)
+  limitTitle()
+
+  // 提示行：左侧操作提示，右侧错误信息（文本框右下角）。
+  const tipRow = el('div', 'field-tip-row')
+  tipRow.appendChild(el('div', 'field-tip', 'Enter 换行，Ctrl + Enter 直接保存'))
+  tipRow.appendChild(el('div', 'spacer'))
+  tipRow.appendChild(titleError)
+  body.appendChild(tipRow)
 
   /** 一个时间输入框 + 一个「清空 / 设置」小按钮。 */
   const makeTimeRow = (label: string, tooltip: string) => {
@@ -521,8 +578,12 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
       }
       sync()
       syncStatusHint()
+      // 闭包在点击时才执行，此时 timeError 已初始化，无 TDZ 问题。
+      timeError.textContent = ''
     })
-    input.addEventListener('change', syncStatusHint)
+    // 注意不能直接传 syncStatusHint：它声明在下方，makeTimeRow 执行时
+    // 直接取值会触发 TDZ ReferenceError，整个计划弹窗渲染失败。
+    input.addEventListener('change', () => syncStatusHint())
     const row = makeFormRow(label)
     row.body.appendChild(input)
     row.body.appendChild(button)
@@ -532,6 +593,18 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
 
   const startEdit = makeTimeRow('开始时间:', '留空表示不设开始时间，该条直接算进行中')
   const endEdit = makeTimeRow('结束时间:', '留空表示不设结束时间，做完了点「✅ 标记结束」收尾')
+
+  // 时间相关校验错误：显示在结束时间行的右下角。
+  const timeError = el('div', 'field-error')
+  const timeErrorRow = el('div', 'field-error-row')
+  timeErrorRow.appendChild(timeError)
+  body.appendChild(timeErrorRow)
+  // 任一时间改动即清掉旧错误。
+  for (const edit of [startEdit, endEdit]) {
+    edit.input.addEventListener('change', () => {
+      timeError.textContent = ''
+    })
+  }
 
   // 状态：没有下拉可挑，一行小字写出当前会显示成什么状态。
   const statusHint = el('div', 'form-hint')
@@ -620,18 +693,18 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
 
   const save = () => {
     if (!titleEdit.value.trim()) {
-      showHint(frame, '事项内容不能为空。')
+      titleError.textContent = '事项内容不能为空。'
       titleEdit.focus()
       return
     }
     const start = startEdit.input.value
     const end = endEdit.input.value
     if (!start && !end) {
-      showHint(frame, '开始时间与结束时间至少要填一个。')
+      timeError.textContent = '开始时间与结束时间至少要填一个。'
       return
     }
     if (start && end && end <= start) {
-      showHint(frame, '结束时间要晚于开始时间。')
+      timeError.textContent = '结束时间要晚于开始时间。'
       return
     }
     result('plan', 'save', {
@@ -644,7 +717,7 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
   }
   saveBtn.addEventListener('click', save)
   titleEdit.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') save()
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') save()
   })
   titleEdit.focus()
 }
@@ -812,37 +885,45 @@ function buildPeriod(frame: DialogFrame, state: DialogState): void {
 // ---------------------------------------------------------------------------
 
 async function showDialog(state: DialogState): Promise<void> {
-  root.innerHTML = ''
-  const frame = makeFrame(state.kind, titleOf(state))
-  if (state.kind === 'work-config') buildWorkConfig(frame, state)
-  else if (state.kind === 'memo') buildMemo(frame, state)
-  else if (state.kind === 'plan') buildPlan(frame, state)
-  else buildPeriod(frame, state)
-  root.appendChild(frame.container)
+  try {
+    root.innerHTML = ''
+    const frame = makeFrame(state.kind, titleOf(state))
+    if (state.kind === 'work-config') buildWorkConfig(frame, state)
+    else if (state.kind === 'memo') buildMemo(frame, state)
+    else if (state.kind === 'plan') buildPlan(frame, state)
+    else buildPeriod(frame, state)
+    root.appendChild(frame.container)
 
-  // 隐藏状态下量尺寸（容器定宽，量出的值不依赖窗口当前大小）。
-  const rect = frame.container.getBoundingClientRect()
-  const margin = 40 // root padding 20 × 2
-  const w = Math.ceil(rect.width) + margin
-  const h = Math.ceil(rect.height) + margin
+    // 隐藏状态下量尺寸（容器定宽，量出的值不依赖窗口当前大小）。
+    const rect = frame.container.getBoundingClientRect()
+    const margin = 24 // root padding 12 × 2
+    const w = Math.ceil(rect.width) + margin
+    const h = Math.ceil(rect.height) + margin
 
-  const factor = await win.scaleFactor()
-  const monitor = await currentMonitor()
-  let x = state.cx - w / 2
-  let y = state.cy - h / 2
-  if (monitor) {
-    const left = monitor.position.x / factor
-    const top = monitor.position.y / factor
-    const right = (monitor.position.x + monitor.size.width) / factor
-    const bottom = (monitor.position.y + monitor.size.height) / factor
-    x = Math.min(Math.max(x, left), Math.max(left, right - w))
-    y = Math.min(Math.max(y, top), Math.max(top, bottom - h))
+    const factor = await win.scaleFactor()
+    const monitor = await currentMonitor()
+    let x = state.cx - w / 2
+    let y = state.cy - h / 2
+    if (monitor) {
+      const left = monitor.position.x / factor
+      const top = monitor.position.y / factor
+      const right = (monitor.position.x + monitor.size.width) / factor
+      const bottom = (monitor.position.y + monitor.size.height) / factor
+      x = Math.min(Math.max(x, left), Math.max(left, right - w))
+      y = Math.min(Math.max(y, top), Math.max(top, bottom - h))
+    }
+
+    await win.setSize(new PhysicalSize(Math.round(w * factor), Math.round(h * factor)))
+    await win.setPosition(new PhysicalPosition(Math.round(x * factor), Math.round(y * factor)))
+    await win.show()
+    await win.setFocus()
+  } catch (err) {
+    // 渲染失败必须上报取消：pet 侧 dialogOpen 不复位的话，之后所有面板
+    // 交互（含右键菜单）都会被模态语义拦截，表现为「右键失效」。
+    console.error('弹窗渲染失败:', err)
+    result(state.kind, 'cancel')
+    void invoke('debug_log', { msg: `[dialog] 渲染失败: ${String(err)}` })
   }
-
-  await win.setSize(new PhysicalSize(Math.round(w * factor), Math.round(h * factor)))
-  await win.setPosition(new PhysicalPosition(Math.round(x * factor), Math.round(y * factor)))
-  await win.show()
-  await win.setFocus()
 }
 
 function titleOf(state: DialogState): string {
@@ -858,16 +939,20 @@ function titleOf(state: DialogState): string {
   }
 }
 
-// Esc 关闭当前弹窗。
+// Esc 关闭当前弹窗。必须上报 cancel：pet 侧靠 dialog-result 复位弹窗
+// 模态状态，只隐藏窗口会让右键菜单等面板交互从此全部失灵。
+let currentKind: DialogKind | null = null
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    void (async () => {
-      await win.hide()
-    })()
+  if (e.key === 'Escape' && currentKind) {
+    const kind = currentKind
+    currentKind = null
+    result(kind, 'cancel')
+    void win.hide()
   }
 })
 
 void listen<DialogState>('dialog-state', (event) => {
+  currentKind = event.payload.kind
   void showDialog(event.payload)
 })
 

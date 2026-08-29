@@ -615,7 +615,7 @@ async function openDialog(kind: 'work-config' | 'memo' | 'plan' | 'period',
   })
 }
 
-/** 修改工作配置（菜单入口；无有效计薪配置时切工作模式也会走到这里）。 */
+/** 修改工作配置（菜单入口；首次切工作模式也会走到这里，保存后自动进入）。 */
 async function openWorkConfig(): Promise<void> {
   await openDialog('work-config')
 }
@@ -651,17 +651,15 @@ async function handleDialogResult(result: DialogResult): Promise<void> {
   if (result.action !== 'apply') dialogOpen = false
 
   if (result.kind === 'work-config' && result.action === 'save' && result.values) {
-    await config.save(result.values)
+    await config.save({ ...result.values, work_config_initialized: 'true' })
     // 生理期卡片可见性 / 透明度可能变了，面板立即跟上。
     await pushWorkState({ show: mode === 'work' })
     await tickWork()
-    // 配置来自「切工作模式但还没有效计薪参数」的路径：保存即进入工作模式。
+    // 配置来自「首次切工作模式」的路径：保存即进入工作模式。
+    // 不再要求填了月薪：表单默认值（自动累计 / 薪资 0）也是有效配置。
     if (mode !== 'work' && !petHiddenByWork) {
-      const earnMode = config.str('work_earn_mode', 'auto')
-      if (earnMode === 'fixed' || config.num('salary', 0) > 0) {
-        await config.switchMode('work')
-        await applyMode('work')
-      }
+      await config.switchMode('work')
+      await applyMode('work')
     }
     return
   }
@@ -817,16 +815,11 @@ function centerOf(payload: Record<string, unknown>): { x: number; y: number } | 
 export const petActions = {
   async switchMode(next: Mode): Promise<void> {
     return enqueue(async () => {
-      // 切工作模式前先确认有有效的日赚来源：固定金额或已填月薪。
-      // 没有的话先弹配置窗（保存后自动进入工作模式）。
-      if (next === 'work') {
-        const earnMode = config.str('work_earn_mode', 'auto')
-        const hasValidConfig =
-          earnMode === 'fixed' || config.num('salary', 0) > 0
-        if (!hasValidConfig) {
-          await openWorkConfig()
-          return
-        }
+      // 首次切工作模式时弹一次配置窗（保存后自动进入工作模式）。
+      // 之后（存在配置信息）就直接进入：表单默认值也算有效配置。
+      if (next === 'work' && !config.bool('work_config_initialized', false)) {
+        await openWorkConfig()
+        return
       }
       await config.switchMode(next)
       await applyMode(next)
