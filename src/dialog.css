@@ -1,0 +1,418 @@
+/**
+ * 弹窗窗：工作配置 / 备忘录 / 计划安排 / 生理期详情四个弹窗共用一个
+ * 常驻隐藏的悬浮窗。内容与位置由 pet 窗口经 `dialog-state` 事件下发，
+ * 编辑结果经 `dialog-result` 事件回传（action：save / delete / apply / cancel）。
+ *
+ * 弹窗不自己落盘：数据一律交回 pet 窗口处理，与 Python 版「弹窗只返回
+ * 数据，增删改与落盘都在主窗口」的分工一致。
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: 'Microsoft YaHei', 'Consolas', sans-serif;
+  font-size: 13px;
+  color: #333;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#dialog-root {
+  position: relative;
+  padding: 20px;
+}
+
+.dialog-container {
+  background: rgba(255, 255, 255, 246);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 50);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  /* 定宽：量尺寸时不受窗口当前大小影响 */
+  width: 380px;
+}
+
+.dialog-container.config {
+  width: 420px;
+}
+
+/* 生理期弹窗是粉色系 */
+.dialog-container.period {
+  --accent: #d9779a;
+  --accent-hover: #c46386;
+  --accent-text: #a34c63;
+  --input-border: #e6d3d9;
+  --input-bg: #fdfafb;
+  --divider: #f0e7ea;
+}
+
+.dialog-container {
+  --accent: #4a90d9;
+  --accent-hover: #357abd;
+  --accent-text: #4a5057;
+  --input-border: #dde1e6;
+  --input-bg: #fafbfc;
+  --divider: #edeff2;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  cursor: move;
+}
+
+.dialog-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--accent-text);
+  flex: 1;
+}
+
+.dialog-close {
+  background: transparent;
+  color: #a8adb2;
+  border: none;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: bold;
+  min-width: 22px;
+  min-height: 22px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dialog-close:hover {
+  background: #edeff2;
+  color: #4a5057;
+}
+
+.dialog-container.period .dialog-close:hover {
+  background: #f2e1e6;
+  color: var(--accent-text);
+}
+
+.dialog-divider {
+  height: 1px;
+  background: var(--divider);
+}
+
+/* 表单行 */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.form-row > .form-label {
+  width: 84px;
+  flex: none;
+  color: #333;
+}
+
+.form-row > .form-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.form-row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.form-row.stacked > .form-label {
+  width: auto;
+  color: #8a9096;
+  font-size: 12px;
+}
+
+input[type='text'],
+input[type='number'],
+input[type='time'],
+input[type='date'],
+input[type='datetime-local'],
+select,
+textarea {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #333;
+  background: var(--input-bg);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+input:disabled {
+  color: #9aa1a8;
+  background: #f2f3f5;
+}
+
+textarea {
+  resize: none;
+  line-height: 1.6;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+input[type='number'] {
+  width: 110px;
+}
+
+/* 单选组 */
+.radio-group {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.radio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+
+/* 开关 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex: none;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: #d5dae0;
+  transition: background 150ms ease;
+  cursor: pointer;
+}
+
+.switch .slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: #fff;
+  transition: transform 150ms ease;
+}
+
+.switch input:checked + .slider {
+  background: var(--accent);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+/* 滑块 */
+input[type='range'] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #e3e7ec;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9px;
+  background: #fff;
+  border: 2px solid var(--accent);
+}
+
+.range-hint {
+  width: 40px;
+  text-align: right;
+  flex: none;
+  color: #333;
+}
+
+/* 提示文字 */
+.form-hint {
+  color: #8a9096;
+  font-size: 12px;
+}
+
+.count-label {
+  color: #b4b9be;
+  font-size: 12px;
+}
+
+.section-hint {
+  color: #9aa1a8;
+  font-size: 12px;
+}
+
+.dialog-hint {
+  min-height: 16px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.dialog-hint.error {
+  color: #d63031;
+}
+
+.dialog-hint.ok {
+  color: #2e9e6b;
+}
+
+/* 按钮区 */
+.dialog-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dialog-buttons .spacer {
+  flex: 1;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 30px;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-delete {
+  background: #fff;
+  color: #d06a6a;
+  border: 1px solid #f0cfcf;
+  padding: 9px 18px;
+}
+
+.btn-delete:hover {
+  background: #fcefef;
+  color: #c15555;
+}
+
+.btn-minor {
+  background: #f0f2f5;
+  color: #6c737c;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: normal;
+  flex: none;
+}
+
+.btn-minor:hover {
+  background: #e4e8ed;
+  color: #4a5057;
+}
+
+.btn-quick {
+  background: #fff;
+  color: var(--accent-text);
+  border: 1px solid var(--input-border);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.btn-quick:hover {
+  background: #f2f6fb;
+  color: #357abd;
+}
+
+.dialog-container.period .btn-quick {
+  border-color: #ebc9d3;
+}
+
+.dialog-container.period .btn-quick:hover {
+  background: #fbeef2;
+  color: var(--accent-text);
+}
+
+.btn-quick:disabled {
+  color: #c3c7cc;
+  border-color: #e7e9eb;
+  background: #f7f8f9;
+  cursor: default;
+}
+
+/* 详情键值表（生理期弹窗） */
+.detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 18px;
+  row-gap: 8px;
+}
+
+.detail-key {
+  color: #8a9096;
+}
+
+.detail-value {
+  color: #444;
+  font-weight: bold;
+  text-align: right;
+}
+
+.foot-note {
+  color: #a8adb2;
+  font-size: 11px;
+}
+
+/* 字段说明 */
+.field-tip {
+  color: #b4b9be;
+  font-size: 12px;
+}

@@ -1,6 +1,7 @@
 /**
  * 右键菜单入口：请求 Rust 打开独立菜单悬浮窗（现代样式，不受宠物
  * 窗口尺寸裁剪）。选中项经 `menu-action` 事件回传，分发在 app.ts。
+ * 工作面板的右键由 app.ts 直接调用 open_menu_window（带条数计数）。
  */
 import { invoke } from '@tauri-apps/api/core'
 import * as config from './config'

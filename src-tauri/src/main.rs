@@ -1,5 +1,6 @@
 mod config;
 mod keyboard;
+mod store;
 
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -21,10 +22,16 @@ fn open_menu_window(
     y: f64,
     mode: String,
     key_count_visible: bool,
+    memo_count: Option<i64>,
+    plan_count: Option<i64>,
 ) -> Result<(), String> {
+    // 备忘录 / 计划条数只在工作模式下有意义（菜单项也只在那时出现），
+    // 宠物窗口打开菜单时不传。
     let payload = serde_json::json!({
         "mode": mode,
         "keyCountVisible": key_count_visible,
+        "memoCount": memo_count.unwrap_or(0),
+        "planCount": plan_count.unwrap_or(0),
         "x": x,
         "y": y,
     });
@@ -78,6 +85,12 @@ pub fn run() {
             config::save_config,
             keyboard::start_keyboard_listener,
             keyboard::stop_keyboard_listener,
+            store::load_memos,
+            store::save_memos,
+            store::next_memo_id,
+            store::load_plans,
+            store::save_plans,
+            store::next_plan_id,
             open_menu_window,
             take_pending_menu,
             exit_app,
@@ -107,6 +120,46 @@ pub fn run() {
                 .build();
             }
 
+            // 工作模式面板窗：与菜单窗同样常驻隐藏，进入工作模式时由前端
+            // 布局好尺寸再显示。启动即创建，保证切换时页面早已就绪。
+            if app.get_webview_window("work").is_none() {
+                let _ = tauri::WebviewWindowBuilder::new(
+                    &*app,
+                    "work",
+                    tauri::WebviewUrl::App("work.html".into()),
+                )
+                .title("DeskBuddy Work")
+                .decorations(false)
+                .transparent(true)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .visible(false)
+                .shadow(false)
+                .inner_size(480.0, 320.0)
+                .build();
+            }
+
+            // 弹窗窗（工作配置 / 备忘录 / 计划 / 生理期共用）：
+            // 同样常驻隐藏，由 `dialog-state` 事件驱动内容与位置。
+            if app.get_webview_window("dialog").is_none() {
+                let _ = tauri::WebviewWindowBuilder::new(
+                    &*app,
+                    "dialog",
+                    tauri::WebviewUrl::App("dialog.html".into()),
+                )
+                .title("DeskBuddy Dialog")
+                .decorations(false)
+                .transparent(true)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .visible(false)
+                .shadow(false)
+                .inner_size(420.0, 420.0)
+                .build();
+            }
+
             // 窗口尺寸由前端按当前模式的雪碧图尺寸动态调整，
             // 这里只负责把宠物窗口放到屏幕右下角附近（与 Python 版一致）。
             if let Some(window) = app.get_webview_window("pet") {
@@ -128,10 +181,11 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
-            // 关闭宠物窗口（如 Alt+F4）即退出程序：托盘图标尚未实现，
-            // 只停钩子不退出事件循环的话，进程会带着隐藏的菜单窗口僵在后台。
+            // 关闭宠物 / 工作面板 / 弹窗窗口（如 Alt+F4）即退出程序：
+            // 托盘图标尚未实现，只停钩子不退出事件循环的话，进程会带着
+            // 隐藏的常驻窗口僵在后台。
             if let tauri::WindowEvent::Destroyed = event {
-                if window.label() == "pet" {
+                if matches!(window.label(), "pet" | "work" | "dialog") {
                     keyboard::stop();
                     window.app_handle().exit(0);
                 }

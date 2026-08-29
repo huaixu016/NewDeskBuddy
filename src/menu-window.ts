@@ -18,6 +18,8 @@ const root = document.getElementById('menu-root')!
 interface MenuState {
   mode: string
   keyCountVisible: boolean
+  memoCount?: number
+  planCount?: number
   x: number
   y: number
 }
@@ -29,6 +31,7 @@ interface Entry {
   disabled?: boolean
   danger?: boolean
   separatorAfter?: boolean
+  tooltip?: string
   submenu?: Entry[]
 }
 
@@ -43,12 +46,37 @@ const LULU_REACTIONS: Array<[string, string]> = [
   ['lulu_tickle', '🤣 挠痒痒'],
 ]
 
+/** 备忘录 / 计划的条数上限，满了之后菜单项置灰（与 Rust store 一致）。 */
+const MEMO_MAX_COUNT = 50
+const PLAN_MAX_COUNT = 50
+
 function buildEntries(state: MenuState): Entry[] {
   const isLulu = state.mode === 'lulu'
+  const isWork = state.mode === 'work'
   const entries: Entry[] = [
-    { id: 'mode_default', label: '🐱 默认模式', checked: !isLulu },
-    { id: 'mode_lulu', label: '🐾 噜噜模式', checked: isLulu, separatorAfter: true },
+    { id: 'mode_default', label: '🐱 默认模式', checked: !isLulu && !isWork },
+    { id: 'mode_lulu', label: '🐾 噜噜模式', checked: isLulu },
+    { id: 'mode_work', label: '🖥️ 工作模式', checked: isWork, separatorAfter: true },
   ]
+  if (isWork) {
+    // 工作模式专属入口：配置与新增（Python 版只在 work 模式下显示这些项）。
+    entries.push(
+      { id: 'work_config', label: '⚙️ 修改工作配置' },
+      {
+        id: 'memo_add',
+        label: '📝 新增备忘录',
+        disabled: (state.memoCount ?? 0) >= MEMO_MAX_COUNT,
+        tooltip: MEMO_MAX_COUNT <= (state.memoCount ?? 0) ? `备忘录最多 ${MEMO_MAX_COUNT} 条，删掉几条再新增。` : undefined,
+      },
+      {
+        id: 'plan_add',
+        label: '📅 新增计划',
+        disabled: (state.planCount ?? 0) >= PLAN_MAX_COUNT,
+        tooltip: PLAN_MAX_COUNT <= (state.planCount ?? 0) ? `计划安排最多 ${PLAN_MAX_COUNT} 条，删掉几条再新增。` : undefined,
+        separatorAfter: true,
+      },
+    )
+  }
   if (isLulu) {
     entries.push({
       id: 'lulu_group',
@@ -125,6 +153,7 @@ function makeItem(entry: Entry): HTMLElement {
   if (entry.disabled) item.classList.add('menu-item-disabled')
   if (entry.danger) item.classList.add('menu-item-danger')
   item.textContent = entry.label
+  if (entry.tooltip) item.title = entry.tooltip
   if (!entry.disabled) {
     item.addEventListener('click', () => sendAction(entry.id))
   }

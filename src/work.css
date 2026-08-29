@@ -1,0 +1,491 @@
+/**
+ * 工作模式面板样式。
+ * 尺寸按设计稿（scale = 1.0）写死，运行期用 CSS zoom 整体缩放，
+ * 窗口大小 = 设计尺寸 × 缩放比例（由 work.ts 计算后设置）。
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: 'Microsoft YaHei', 'Consolas', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#work-root {
+  position: relative;
+}
+
+/* 缩放层：面板按设计稿布局，这里整体 transform 缩放；
+ * 根元素尺寸由 JS 设为设计尺寸 × 比例，与窗口大小一致。 */
+#zoom-scale {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: fit-content;
+  transform-origin: 0 0;
+}
+
+/* 面板本体：外圈 18px 留白给阴影 */
+#panel {
+  margin: 18px;
+  padding: 22px 26px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 247);
+  box-shadow: 0 8px 34px rgba(0, 0, 0, 55);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------------------
+ * 左列：倒计时 + 角色分页 + 按键统计
+ * --------------------------------------------------------------------------- */
+
+#left-col {
+  width: 212px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#countdown-title {
+  font-size: 18px;
+  color: #8a9096;
+}
+
+#countdown {
+  font-size: 40px;
+  font-weight: bold;
+  font-family: 'Consolas', 'Microsoft YaHei', monospace;
+  color: #7c8288;
+  line-height: 1.1;
+}
+
+#key-count {
+  font-size: 13px;
+  font-weight: bold;
+  font-family: 'Consolas', 'Microsoft YaHei', monospace;
+  color: #6c5ce7;
+  white-space: nowrap;
+}
+
+/* 角色页：GIF 是正方形，按左对齐摆进整列宽度 */
+#gif-page {
+  display: flex;
+  align-items: flex-start;
+}
+
+#work-gif {
+  width: 160px;
+  height: 160px;
+  border-radius: 18px;
+  display: block;
+  object-fit: cover;
+}
+
+/* 待办统计页：背景保持透明，底色就是面板本身 */
+#todo-page {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.todo-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #6b7076;
+}
+
+.todo-cards {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.todo-card {
+  flex: 1;
+  border-radius: 14px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.todo-card-memo {
+  background: #fdf4e3;
+}
+.todo-card-memo .todo-name { color: #8a7b63; }
+.todo-card-memo .todo-value { color: #d08a1c; }
+.todo-card-memo .todo-hint { color: #b3a791; }
+
+.todo-card-plan {
+  background: #e9f0fa;
+}
+.todo-card-plan .todo-name { color: #6e7f99; }
+.todo-card-plan .todo-value { color: #3b6fb5; }
+.todo-card-plan .todo-hint { color: #9aa8bc; }
+
+.todo-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-value {
+  font-size: 26px;
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.todo-hint {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------------------
+ * 分页容器（左右两组共用）
+ * --------------------------------------------------------------------------- */
+
+.pager {
+  display: flex;
+}
+
+.pager-v {
+  flex-direction: row;
+  gap: 10px;
+}
+
+.pager-h {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pager-viewport {
+  overflow: hidden;
+  position: relative;
+  flex: none;
+}
+
+.pager-host {
+  display: flex;
+  transition: transform 300ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+.pager-v .pager-host {
+  flex-direction: column;
+}
+
+.pager-h .pager-host {
+  flex-direction: row;
+}
+
+/* 页面统一固定为单页大小（与 viewport 一致） */
+.page {
+  flex: none;
+}
+
+/* 左侧角色区域：页宽 = 整列宽度，页高 = GIF 尺寸 */
+#left-pager .pager-viewport {
+  width: 212px;
+  height: 160px;
+}
+
+#left-pager .page {
+  width: 212px;
+  height: 160px;
+}
+
+/* 右侧分页：三列信息卡的页宽；cols-2 时（隐藏生理期卡）收回一列 */
+#right-pager .pager-viewport {
+  width: 598px;
+  height: 254px;
+}
+
+#right-pager .page {
+  width: 598px;
+  height: 254px;
+}
+
+#right-pager.cols-2 .pager-viewport,
+#right-pager.cols-2 .page {
+  width: 394px;
+}
+
+/* 翻页圆点 */
+.pager-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.dots-v {
+  flex-direction: column;
+}
+
+.dots-h {
+  flex-direction: row;
+}
+
+.pager-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #d5dae0;
+  margin: 4px 3px;
+}
+
+.pager-dot.active {
+  background: #8a9096;
+}
+
+/* ---------------------------------------------------------------------------
+ * 信息卡
+ * --------------------------------------------------------------------------- */
+
+#cards-page {
+  display: grid;
+  grid-template-columns: repeat(3, 190px);
+  grid-template-rows: repeat(2, 120px);
+  gap: 14px;
+  align-content: start;
+}
+
+#right-pager.cols-2 #cards-page {
+  grid-template-columns: repeat(2, 190px);
+}
+
+/* 生理期卡隐藏时整列收回 */
+#right-pager:not(.cols-2) #card-period {
+  display: flex;
+}
+
+#right-pager.cols-2 #card-period {
+  display: none !important;
+}
+
+.info-card {
+  border-radius: 18px;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.info-card .card-title {
+  font-size: 17px;
+  color: #9aa1a8;
+}
+
+.info-card .card-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #55595e;
+}
+
+#card-payday { background: #e4edfa; }
+#card-festival { background: #fbe7e8; }
+#card-weekday { background: #f0e8f7; }
+#card-earn { background: #e2f3f1; }
+/* 生理期卡底色随周期状态由 JS 内联覆盖 */
+#card-period { background: #ecedef; cursor: pointer; }
+
+/* ---------------------------------------------------------------------------
+ * 列表页（备忘录 / 计划安排）
+ * --------------------------------------------------------------------------- */
+
+.list-page {
+  border-radius: 18px;
+  background: #f8f9f4;
+  padding: 14px 10px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #6b7076;
+}
+
+.list-divider {
+  height: 1px;
+  background: #e7eae3;
+  flex: none;
+}
+
+.rows {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 细滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: #d8dde2 transparent;
+}
+
+.rows::-webkit-scrollbar {
+  width: 5px;
+}
+
+.rows::-webkit-scrollbar-thumb {
+  background: #d8dde2;
+  border-radius: 3px;
+}
+
+.rows::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  color: #bcc1c7;
+  line-height: 1.7;
+}
+
+/* 备忘录行 */
+.memo-row {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+  border-bottom: 1px solid #edf0f1;
+  box-sizing: border-box;
+}
+
+.memo-check {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  border: 1px solid #d5dbe0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  cursor: pointer;
+}
+
+.memo-row.done .memo-check {
+  background: #5cbf6e;
+  border-color: #5cbf6e;
+}
+
+.memo-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: #55595e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.memo-row.done .memo-text {
+  color: #a9afb5;
+  text-decoration: line-through;
+}
+
+/* 计划行：上下两行，时间独占一行 */
+.plan-row {
+  height: 60px;
+  padding: 5px 4px;
+  border-bottom: 1px solid #edf0f1;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.plan-time {
+  font-size: 13px;
+  font-weight: bold;
+  font-family: 'Consolas', 'Microsoft YaHei', monospace;
+  color: #5b6b84;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.plan-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: #55595e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-row.done .plan-title {
+  color: #a9afb5;
+}
+
+.plan-row.canceled .plan-title {
+  color: #a9afb5;
+  text-decoration: line-through;
+}
+
+/* 徽章宽度按最宽状态文案（三字）固定，事项可用宽度不随状态变化 */
+.plan-badge {
+  flex: none;
+  width: 52px;
+  height: 22px;
+  border-radius: 11px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * 透明度提示
+ * --------------------------------------------------------------------------- */
+
+#opacity-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(70, 76, 84, 228);
+  color: #fff;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+#opacity-hint.show {
+  opacity: 1;
+}

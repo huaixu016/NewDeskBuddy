@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeskBuddy Work</title>
+  <link rel="stylesheet" href="/src/work.css" />
+</head>
+<body>
+  <div id="work-root">
+    <div id="zoom-scale">
+      <div id="panel">
+      <div id="left-col">
+        <div id="countdown-title">下班还有</div>
+        <div id="countdown">--:--:--</div>
+        <div id="left-pager" class="pager pager-h">
+          <div class="pager-viewport">
+            <div class="pager-host">
+              <div class="page" id="gif-page">
+                <img id="work-gif" src="assets/work.gif" alt="" draggable="false" />
+              </div>
+              <div class="page" id="todo-page">
+                <div class="todo-title">待办统计</div>
+                <div class="todo-cards">
+                  <div class="todo-card todo-card-memo" data-key="memo">
+                    <div class="todo-name">📝 备忘录</div>
+                    <div class="todo-value">0</div>
+                    <div class="todo-hint">条未处理</div>
+                  </div>
+                  <div class="todo-card todo-card-plan" data-key="plan">
+                    <div class="todo-name">📅 计划安排</div>
+                    <div class="todo-value">0</div>
+                    <div class="todo-hint">条未处理</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="pager-dots dots-h"></div>
+        </div>
+        <div id="key-count">⌨ 总按键次数: 0</div>
+      </div>
+      <div id="right-pager" class="pager pager-v">
+        <div class="pager-viewport">
+          <div class="pager-host">
+            <div class="page" id="cards-page">
+              <div class="info-card" id="card-payday">
+                <div class="card-title">发薪</div>
+                <div class="card-value">--</div>
+              </div>
+              <div class="info-card" id="card-festival">
+                <div class="card-title">节日</div>
+                <div class="card-value">--</div>
+              </div>
+              <div class="info-card" id="card-period">
+                <div class="card-title">🩸 生理期</div>
+                <div class="card-value">--</div>
+              </div>
+              <div class="info-card" id="card-weekday">
+                <div class="card-title">周五</div>
+                <div class="card-value">--</div>
+              </div>
+              <div class="info-card" id="card-earn">
+                <div class="card-title">日赚</div>
+                <div class="card-value">--</div>
+              </div>
+            </div>
+            <div class="page list-page" id="memo-page">
+              <div class="list-title">📝 备忘录</div>
+              <div class="list-divider"></div>
+              <div class="rows" id="memo-rows"></div>
+              <div class="list-empty" id="memo-empty">还没有备忘录<br />右键面板 →「📝 新增备忘录」</div>
+            </div>
+            <div class="page list-page" id="plan-page">
+              <div class="list-title">📅 计划安排</div>
+              <div class="list-divider"></div>
+              <div class="rows" id="plan-rows"></div>
+              <div class="list-empty" id="plan-empty">还没有计划安排<br />右键面板 →「📅 新增计划」</div>
+            </div>
+          </div>
+        </div>
+        <div class="pager-dots dots-v"></div>
+      </div>
+    </div>
+    </div>
+    <div id="opacity-hint">透明度 100%</div>
+  </div>
+  <script type="module" src="/src/work.ts"></script>
+</body>
+</html>

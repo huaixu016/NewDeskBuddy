@@ -106,10 +106,14 @@ impl ConfigState {
 
     /// 调试日志文件位置：跟着配置文件放同一目录。
     pub fn debug_log_path(&self) -> PathBuf {
-        self.path
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
+        self.data_dir()
+            .unwrap_or_else(|| Path::new(".").to_path_buf())
             .join("debug.log")
+    }
+
+    /// 数据文件目录（memos.json / plans.json 与 config.txt 同目录）。
+    pub fn data_dir(&self) -> Option<PathBuf> {
+        self.path.parent().map(|p| p.to_path_buf())
     }
 
     /// 把内存中的配置整体写回 config.txt。

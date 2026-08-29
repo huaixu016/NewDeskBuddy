@@ -4,7 +4,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
-export type Mode = 'default' | 'lulu'
+export type Mode = 'default' | 'lulu' | 'work'
 export type EarnMode = 'auto' | 'fixed'
 
 /** 前端会用到的配置键与默认值（与 Rust 端 default_config 保持一致）。 */
@@ -13,6 +13,28 @@ export const DEFAULTS: Record<string, string> = {
   cat_resting: 'false',
   lulu_top_drop: 'true',
   key_count_visible: 'true',
+  // 工作模式：计薪参数（日赚自动累计）与面板参数。
+  salary: '0',
+  rest_type: '双休',
+  custom_rest_days: '0',
+  am_start: '09:00',
+  am_end: '12:00',
+  pm_start: '13:00',
+  pm_end: '18:00',
+  work_off_time: '17:00',
+  work_payday: '15',
+  work_festival_name: '',
+  work_festival_date: '',
+  work_target_weekday: '5',
+  work_earn_mode: 'auto',
+  work_fixed_earn: '0',
+  work_scale: '0.65',
+  work_opacity: '1',
+  // 生理期参数：起始日为空表示尚未配置，卡片显示「待设置」。
+  last_period_start: '',
+  cycle_days: '28',
+  period_days: '5',
+  period_visible: 'false',
 }
 
 /** 完整配置的内存副本，load() 之后全程有效。 */
@@ -51,7 +73,8 @@ export function num(key: string, fallback = 0): number {
 /** 当前生效的模式：认不出的 current_mode 一律回落默认模式。 */
 export function resolvedMode(): Mode {
   const mode = str('current_mode') || 'default'
-  return mode === 'lulu' ? 'lulu' : 'default'
+  if (mode === 'lulu' || mode === 'work') return mode
+  return 'default'
 }
 
 /** 切换模式：默认模式存空字符串，与 Python 版的落盘格式一致。 */
