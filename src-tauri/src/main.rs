@@ -1,3 +1,7 @@
+// Windows 子系统：release 构建不带命令行窗口（否则运行 exe 会附带一个
+// cmd 窗口，关掉它进程也会被终止）。debug 构建保留控制台，方便看日志输出。
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod config;
 mod keyboard;
 mod store;
