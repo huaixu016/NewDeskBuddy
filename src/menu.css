@@ -71,6 +71,23 @@ body {
   font-weight: 700;
 }
 
+/* 文案包一层 span：红点角标要跟文案同行排在右侧 */
+.menu-item-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 新版本红点：更新为非强制提示，只在检测到新版本时出现 */
+.menu-item-dot {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: #e5484d;
+  flex: none;
+}
+
 .menu-item-disabled {
   color: #9aa0a6;
   cursor: default;

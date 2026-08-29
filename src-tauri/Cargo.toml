@@ -12,6 +12,9 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 parking_lot = "0.12"
+# 更新检查：轻量同步 HTTP 客户端（rustls）+ 本地时间（每日定时）
+ureq = "2"
+chrono = "0.4"
 windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",

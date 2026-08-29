@@ -40,6 +40,9 @@ fn default_config() -> BTreeMap<String, String> {
         ("cycle_days", "28"),
         ("period_days", "5"),
         ("period_visible", "false"),
+        // 更新检查：最近一次检测到的 Releases 版本与检测日期（每日一次）。
+        ("update_latest_version", ""),
+        ("update_checked_date", ""),
     ];
     entries
         .into_iter()
@@ -105,6 +108,20 @@ impl ConfigState {
             .lock()
             .get("debug_log")
             .is_some_and(|v| v.eq_ignore_ascii_case("true"))
+    }
+
+    /// 读一个配置键（内存副本，未落盘的修改立即可见）。
+    pub fn get(&self, key: &str) -> Option<String> {
+        self.values.lock().get(key).cloned()
+    }
+
+    /// 写一个配置键并立即落盘（更新检测结果用；普通配置走 save_config）。
+    pub fn set(&self, key: &str, value: &str) {
+        {
+            let mut values = self.values.lock();
+            values.insert(key.to_string(), value.to_string());
+        }
+        let _ = self.persist();
     }
 
     /// 调试日志文件位置：跟着配置文件放同一目录。

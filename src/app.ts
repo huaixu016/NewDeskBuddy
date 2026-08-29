@@ -548,6 +548,16 @@ async function handleMenuAction(action: string): Promise<void> {
     case 'toggle_key_count':
       await petActions.toggleKeyCount()
       break
+    case 'update': {
+      // 直接下载安装包更新（下载完自动退出启动安装向导）；
+      // 仓库没有安装包或下载失败时由 Rust 侧回退为打开 Releases 页面。
+      // 下载期间给个气泡反馈（宠物窗口可见时）。
+      if (mode !== 'work') {
+        showBubble(appEl, '⬇️ 正在下载新版本…', Math.max(0, animator.size / 2 - 20), 50)
+      }
+      await invoke('download_and_update')
+      break
+    }
     case 'quit':
       await petActions.quit()
       break

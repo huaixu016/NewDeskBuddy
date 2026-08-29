@@ -43,6 +43,7 @@ cargo check            # 在 src-tauri/ 下检查 Rust 侧
 | `src/config.ts` | 配置前端包装；后端 `config.rs` 负责真正的读写与容错 |
 | `src-tauri/src/main.rs` | 入口、窗口创建（menu/work/dialog）、菜单事件路由、退出路径 |
 | `src-tauri/src/keyboard.rs` | 全局键盘钩子 |
+| `src-tauri/src/update.rs` | 更新检查：每日按 `am_start` 时刻拉 GitHub Releases，版本写 config.txt（`update_latest_version`/`update_checked_date`），远端＞本地时菜单「更新」项红点提示。点击「更新」直接下载 Release 的 `-setup.exe` 资产到临时目录并启动安装向导、应用自动退出让路；无安装包资产或下载失败回退 `open_release_page` 打开浏览器 |
 | `src-tauri/src/store.rs` | memos.json / plans.json 的读写与收敛（条数上限 50、文案截断、id 去重、计划按时间排序） |
 
 ## 关键设计与已知陷阱（改代码前必读）

@@ -34,6 +34,17 @@ npm run tauri dev
 npm run tauri build
 ```
 
+## 发布新版本
+
+应用内置更新检查（每日按工作配置的上午上班时间检测一次 GitHub Releases，有新版本时菜单「📥 更新」项显示红点，点击可直接下载安装）。发新版按以下流程：
+
+1. **改版本号**：同步修改 `src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的 `version` 字段——前者是更新检测比较的本地版本，后者决定安装包文件名，两处不一致会导致红点判断错误。
+2. **构建**：`npm run tauri build`，NSIS 安装包产出于 `src-tauri/target/release/bundle/nsis/NewDeskBuddy_<版本>_x64-setup.exe`。
+3. **发布**：在 GitHub 仓库（[huaixu016/NewDeskBuddy](https://github.com/huaixu016/NewDeskBuddy)）新建 Release，tag 用 `v<版本>` 形式（如 `v0.2.0`），把第 2 步的 **`*-setup.exe` 作为资产上传**。
+4. **验证**：旧版本用户次日上班时间后菜单出现红点；点「更新」自动下载安装包、退出应用并启动安装向导。想立即验证，可手动在 config.txt 里把 `update_latest_version` 改成高于本地的版本号再右键。
+
+注意：Release 里必须上传 `*-setup.exe` 资产，直接更新功能靠它；只传源码包时点「更新」会回退为浏览器打开 Releases 页面。
+
 ## 目录结构
 
 ```text

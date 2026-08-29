@@ -20,6 +20,8 @@ interface MenuState {
   keyCountVisible: boolean
   memoCount?: number
   planCount?: number
+  /** 检测到新版本（远端 > 本地）：「更新」项带红点提示。 */
+  updateAvailable?: boolean
   x: number
   y: number
 }
@@ -33,6 +35,8 @@ interface Entry {
   separatorAfter?: boolean
   tooltip?: string
   submenu?: Entry[]
+  /** 红点角标（新版本提示）。 */
+  badge?: 'dot'
 }
 
 /** 噜噜互动子菜单，id 与序列名一致。 */
@@ -90,6 +94,12 @@ function buildEntries(state: MenuState): Entry[] {
     })
   }
   entries.push({ id: 'placeholder', label: '🎮 更多玩法（敬请期待）', disabled: true, separatorAfter: true })
+  // 更新检查：非强制，仅红点提示；点击打开 GitHub Releases 页面。
+  entries.push({
+    id: 'update',
+    label: '📥 更新',
+    badge: state.updateAvailable ? 'dot' : undefined,
+  })
   entries.push({ id: 'toggle_key_count', label: '⌨ 显示总按键次数', checked: state.keyCountVisible, separatorAfter: true })
   entries.push({ id: 'quit', label: '🚪 退出', danger: true })
   return entries
@@ -152,7 +162,15 @@ function makeItem(entry: Entry): HTMLElement {
   if (entry.checked) item.classList.add('menu-item-checked')
   if (entry.disabled) item.classList.add('menu-item-disabled')
   if (entry.danger) item.classList.add('menu-item-danger')
-  item.textContent = entry.label
+  const text = document.createElement('span')
+  text.className = 'menu-item-text'
+  text.textContent = entry.label
+  item.appendChild(text)
+  if (entry.badge === 'dot') {
+    const dot = document.createElement('span')
+    dot.className = 'menu-item-dot'
+    item.appendChild(dot)
+  }
   if (entry.tooltip) item.title = entry.tooltip
   if (!entry.disabled) {
     item.addEventListener('click', () => sendAction(entry.id))

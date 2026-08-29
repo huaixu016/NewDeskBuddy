@@ -1,6 +1,7 @@
 mod config;
 mod keyboard;
 mod store;
+mod update;
 
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -27,11 +28,17 @@ fn open_menu_window(
 ) -> Result<(), String> {
     // 备忘录 / 计划条数只在工作模式下有意义（菜单项也只在那时出现），
     // 宠物窗口打开菜单时不传。
+    // 更新红点：检测到的 Releases 版本 > 本地版本时提示（仅提示不强制）。
+    let latest_version = app
+        .state::<crate::config::ConfigState>()
+        .get("update_latest_version")
+        .unwrap_or_default();
     let payload = serde_json::json!({
         "mode": mode,
         "keyCountVisible": key_count_visible,
         "memoCount": memo_count.unwrap_or(0),
         "planCount": plan_count.unwrap_or(0),
+        "updateAvailable": update::update_available(&latest_version),
         "x": x,
         "y": y,
     });
@@ -95,10 +102,15 @@ pub fn run() {
             take_pending_menu,
             exit_app,
             debug_log,
+            update::open_release_page,
+            update::download_and_update,
         ])
         .setup(|app| {
             // 启动即开始统计全局键盘输入，计数从本次运行开始、不持久化。
             keyboard::spawn(app.handle().clone());
+
+            // 更新检查：每日按工作配置的上午上班时间检测一次 GitHub Releases。
+            update::spawn(app.handle().clone());
 
             // 菜单悬浮窗：常驻隐藏，右键时由前端重新定位并显示。
             // 启动即创建，保证右键时页面早已加载完毕。
