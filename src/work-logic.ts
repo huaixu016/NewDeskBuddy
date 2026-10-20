@@ -392,12 +392,15 @@ export function buildStatus(input: PeriodInput, today: Date = new Date()): Perio
 
 const REST_WORK_DAYS: Record<string, number> = { 双休: 8, 大小周: 6, 单休: 4 }
 
+/** 解析配置里的时刻（`H:mm` / `HH:mm` / `HH:mm:ss`），统一按分钟精度处理。 */
 function parseHm(text: string): Date | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec((text ?? '').trim())
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{1,2})(?:\.\d+)?)?$/.exec((text ?? '').trim())
   if (!m) return null
   const h = Number(m[1])
   const min = Number(m[2])
   if (h > 23 || min > 59) return null
+  // 秒是历史配置里可能残留的精度，校验合法后直接丢弃。
+  if (m[3] !== undefined && Number(m[3]) > 59) return null
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min)
 }

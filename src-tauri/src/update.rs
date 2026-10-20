@@ -31,6 +31,14 @@ fn parse_version(text: &str) -> Vec<u64> {
         .collect()
 }
 
+/// 解析配置里的时刻：`H:mm` / `HH:mm` / `HH:mm:ss` 均可，统一按分钟精度处理。
+fn parse_hm(text: &str) -> Option<NaiveTime> {
+    let text = text.trim();
+    NaiveTime::parse_from_str(text, "%H:%M")
+        .or_else(|_| NaiveTime::parse_from_str(text, "%H:%M:%S"))
+        .ok()
+}
+
 /// 远端版本 > 本地版本才算有更新（相等或更低都不提示）。
 pub fn update_available(latest: &str) -> bool {
     let remote = parse_version(latest);
@@ -79,11 +87,10 @@ pub fn spawn(app: AppHandle) {
                 // 今天已经查过，等明天。
                 POLL_DELAY
             } else {
-                let am_start = NaiveTime::parse_from_str(
+                let am_start = parse_hm(
                     &state.get("am_start").unwrap_or_else(|| "09:00".into()),
-                    "%H:%M",
                 )
-                .unwrap_or_else(|_| NaiveTime::from_hms_opt(9, 0, 0).expect("9:00 合法"));
+                .unwrap_or_else(|| NaiveTime::from_hms_opt(9, 0, 0).expect("9:00 合法"));
                 if Local::now().time() >= am_start {
                     if run_check(&state).is_ok() {
                         POLL_DELAY

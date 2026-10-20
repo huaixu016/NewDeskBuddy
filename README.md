@@ -34,6 +34,15 @@ npm run tauri dev
 npm run tauri build
 ```
 
+产物位于 `src-tauri/target/release/bundle/nsis/NewDeskBuddy_<版本>_x64-setup.exe`。
+
+如果构建卡在从 GitHub 下载 NSIS 工具链（日志停在 `Downloading .../nsis-3.11.zip` 后超时），设置镜像后重跑即可；工具链下载成功后会缓存，后续构建不再需要：
+
+```cmd
+set TAURI_BUNDLER_TOOLS_GITHUB_MIRROR=https://gh-proxy.com
+npm run tauri build
+```
+
 ## 发布新版本
 
 应用内置更新检查（每日按工作配置的上午上班时间检测一次 GitHub Releases，有新版本时菜单「📥 更新」项显示红点，点击可直接下载安装）。发新版按以下流程：

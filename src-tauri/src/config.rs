@@ -64,6 +64,9 @@ const NUMERIC_KEYS: &[(&str, bool)] = &[
     ("period_days", false),
 ];
 
+/// 时间字段：统一收敛为 `HH:mm`（精确到分钟），秒及以下一律截掉。
+const TIME_KEYS: &[&str] = &["am_start", "am_end", "pm_start", "pm_end", "work_off_time"];
+
 /// 布尔字段：文本 "true" 判定为真，其余为假。
 const BOOL_KEYS: &[&str] = &[
     "lulu_top_drop",
@@ -227,6 +230,38 @@ fn normalize(values: &mut BTreeMap<String, String>) {
             values.insert(key.to_string(), as_bool.to_string());
         }
     }
+    for key in TIME_KEYS {
+        let fallback = default_config()
+            .get(*key)
+            .cloned()
+            .unwrap_or_default();
+        let normalized = snapshot
+            .get(*key)
+            .and_then(|raw| normalize_time(raw))
+            .unwrap_or(fallback);
+        values.insert(key.to_string(), normalized);
+    }
+}
+
+/// 把时间文本收敛为 `HH:mm`。接受 `H:mm`、`HH:mm`、`HH:mm:ss`（含小数秒），
+/// 秒级部分直接丢弃；非法时间返回 None 由调用方回落默认值。
+fn normalize_time(raw: &str) -> Option<String> {
+    let parts: Vec<&str> = raw.trim().split(':').collect();
+    if parts.len() != 2 && parts.len() != 3 {
+        return None;
+    }
+    let hour: u32 = parts[0].trim().parse().ok()?;
+    let minute: u32 = parts[1].trim().parse().ok()?;
+    if hour > 23 || minute > 59 {
+        return None;
+    }
+    if parts.len() == 3 {
+        let second: f64 = parts[2].trim().parse().ok()?;
+        if !(0.0..60.0).contains(&second) {
+            return None;
+        }
+    }
+    Some(format!("{hour:02}:{minute:02}"))
 }
 
 /// 整数就直接输出；浮点去掉多余的尾零（1.0 存成 1，0.65 保持 0.65），

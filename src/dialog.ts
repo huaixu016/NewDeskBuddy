@@ -76,19 +76,31 @@ function toTimeInput(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
+/** 时间配置统一按分钟精度：只保留 `HH:mm`，`HH:mm:ss` 的秒截掉；非法值回落 fallback。 */
+function toHmText(value: string, fallback = ''): string {
+  const m = /^(\d{1,2}):(\d{2})(?::\d{1,2}(?:\.\d+)?)?$/.exec((value ?? '').trim())
+  if (!m) return fallback
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h > 23 || min > 59) return fallback
+  return `${pad2(h)}:${pad2(min)}`
+}
+
 /** Date → datetime-local 的 `yyyy-MM-ddTHH:mm`。 */
 function toDateTimeInput(d: Date): string {
   return `${toDateInput(d)}T${toTimeInput(d)}`
 }
 
-/** datetime-local 的值 → 存储文本 `yyyy-MM-dd HH:mm`。 */
+/** datetime-local 的值 → 存储文本 `yyyy-MM-dd HH:mm`（秒及以下截掉）。 */
 function fromDateTimeInput(value: string): string {
-  return value ? value.replace('T', ' ') : ''
+  return value ? toDateTimeInputText(value).replace('T', ' ') : ''
 }
 
-/** 存储文本 → datetime-local 的值。 */
+/** 存储文本 → datetime-local 的值，统一截到分钟精度。 */
 function toDateTimeInputText(text: string): string {
-  return text ? text.replace(' ', 'T') : ''
+  const value = (text ?? '').trim().replace(' ', 'T')
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/.exec(value)
+  return m ? m[1] : value
 }
 
 /** 下一个整点，供「设置」按钮回落使用。 */
@@ -186,6 +198,14 @@ function makeNumber(value: number, min: number, max: number, step: number): HTML
 const REST_TYPES = ['双休', '大小周', '单休', '其他']
 const WEEKDAY_NAMES = logic.WEEKDAY_NAMES
 
+/** 计薪参数的上下班时间默认值（精确到分钟）。 */
+const TIME_DEFAULTS: Record<string, string> = {
+  am_start: '09:00',
+  am_end: '12:00',
+  pm_start: '13:00',
+  pm_end: '18:00',
+}
+
 function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   const cfg = state.config
   const body = frame.body
@@ -218,7 +238,8 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
 
   const offTime = el('input') as HTMLInputElement
   offTime.type = 'time'
-  offTime.value = cfgStr(cfg, 'work_off_time', '17:00')
+  offTime.step = '60'
+  offTime.value = toHmText(cfgStr(cfg, 'work_off_time', '17:00'), '17:00')
 
   const payday = makeNumber(Math.round(cfgNum(cfg, 'work_payday', 15)), 1, 31, 1)
 
@@ -339,7 +360,8 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   const timeCell = (key: string, label: string) => {
     const input = el('input') as HTMLInputElement
     input.type = 'time'
-    input.value = cfgStr(cfg, key, key.endsWith('start') ? (key === 'am_start' ? '09:00' : '13:00') : (key === 'am_end' ? '12:00' : '18:00'))
+    input.step = '60'
+    input.value = toHmText(cfgStr(cfg, key, TIME_DEFAULTS[key]), TIME_DEFAULTS[key])
     timeEdits.push([key, input])
     return fieldCell(label, input)
   }
@@ -401,7 +423,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
 
   saveBtn.addEventListener('click', () => {
     const values: Record<string, string> = {
-      work_off_time: offTime.value || '17:00',
+      work_off_time: toHmText(offTime.value, '17:00'),
       work_payday: payday.value,
       work_festival_name: festivalName.value.trim(),
       work_festival_date: festivalDate.value,
@@ -414,7 +436,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
       rest_type: Object.entries(restRadios).find(([, radio]) => radio.checked)?.[0] ?? '双休',
       custom_rest_days: customRest.value || '0',
     }
-    for (const [key, input] of timeEdits) values[key] = input.value
+    for (const [key, input] of timeEdits) values[key] = toHmText(input.value, TIME_DEFAULTS[key])
     result('work-config', 'save', values)
     void win.hide()
   })
@@ -558,6 +580,7 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
   const makeTimeRow = (label: string, tooltip: string) => {
     const input = el('input') as HTMLInputElement
     input.type = 'datetime-local'
+    input.step = '60'
     input.title = tooltip
     const button = el('button', 'btn-minor') as HTMLButtonElement
     const sync = () => {
