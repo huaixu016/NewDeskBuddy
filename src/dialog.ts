@@ -13,6 +13,8 @@ import { emit } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi'
+import flatpickr from 'flatpickr'
+import { Mandarin } from 'flatpickr/dist/l10n/zh.js'
 import * as logic from './work-logic'
 
 const win = getCurrentWindow()
@@ -71,36 +73,131 @@ function toDateInput(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
-/** Date → `HH:mm`。 */
-function toTimeInput(d: Date): string {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-}
-
-/** 时间配置统一按分钟精度：只保留 `HH:mm`，`HH:mm:ss` 的秒截掉；非法值回落 fallback。 */
-function toHmText(value: string, fallback = ''): string {
-  const m = /^(\d{1,2}):(\d{2})(?::\d{1,2}(?:\.\d+)?)?$/.exec((value ?? '').trim())
-  if (!m) return fallback
+/** 宽松解析用户输入的时间：接受 `17:30`、`9:5`、`1730`、`17:30:00` 等写法，统一成 `HH:mm`。 */
+function normalizeHmInput(value: string): string {
+  const text = (value ?? '').trim().replace(/：/g, ':').replace(/\s+/g, '')
+  if (!text) return ''
+  // 有冒号：时/分各 1~2 位，可带秒（秒直接丢弃）；无冒号：按 HHmm / Hmm 解析。
+  const m = /^(\d{1,2}):(\d{1,2})(?::\d{1,2}(?:\.\d+)?)?$/.exec(text)
+    ?? /^(\d{1,2})(\d{2})$/.exec(text)
+  if (!m) return ''
   const h = Number(m[1])
   const min = Number(m[2])
-  if (h > 23 || min > 59) return fallback
+  if (h > 23 || min > 59) return ''
   return `${pad2(h)}:${pad2(min)}`
 }
 
-/** Date → datetime-local 的 `yyyy-MM-ddTHH:mm`。 */
-function toDateTimeInput(d: Date): string {
-  return `${toDateInput(d)}T${toTimeInput(d)}`
+/** 时间配置统一按分钟精度：只保留 `HH:mm`，非法值回落 fallback。 */
+function toHmText(value: string, fallback = ''): string {
+  return normalizeHmInput(value) || fallback
 }
 
-/** datetime-local 的值 → 存储文本 `yyyy-MM-dd HH:mm`（秒及以下截掉）。 */
-function fromDateTimeInput(value: string): string {
-  return value ? toDateTimeInputText(value).replace('T', ' ') : ''
+interface TimeControl {
+  /** 时间控件容器（只读输入框 + 时钟图标，可挂 change 监听）。 */
+  element: HTMLElement
+  getValue(): string
+  setValue(value: string): void
+  setDisabled(disabled: boolean): void
 }
 
-/** 存储文本 → datetime-local 的值，统一截到分钟精度。 */
-function toDateTimeInputText(text: string): string {
-  const value = (text ?? '').trim().replace(' ', 'T')
-  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/.exec(value)
-  return m ? m[1] : value
+/** 当前展开的 flatpickr 关闭函数；同一时刻只允许展开一个。 */
+let activeTimePicker: (() => void) | null = null
+
+/** 时钟图标（静态 SVG），供输入框和时间浮层标题复用。 */
+function makeClockIcon(cls: string): HTMLElement {
+  const icon = el('span', cls)
+  icon.innerHTML =
+    '<svg viewBox="0 0 16 16" aria-hidden="true">'
+    + '<circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.3"/>'
+    + '<path d="M8 4.4V8l2.6 1.6" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '</svg>'
+  return icon
+}
+
+/**
+ * 分钟精度的时间选择器：flatpickr 的 time-only 浮层（24 小时制、无秒）。
+ * 原生 `type="time"` 会按系统短时间格式强制显示秒字段，无法通过属性隐藏。
+ */
+function makeTimeControl(value: string, fallback: string): TimeControl {
+  const wrap = el('div', 'time-field')
+  const input = el('input') as HTMLInputElement
+  input.type = 'text'
+  input.readOnly = true
+  input.value = toHmText(value, fallback)
+  wrap.appendChild(input)
+  wrap.appendChild(makeClockIcon('time-icon'))
+
+  let hm = input.value
+  let picker: flatpickr.Instance
+  const closeSelf = () => picker.close()
+  // 优先收起时间浮层，不触发弹窗自身的 Esc 关闭。
+  const onEsc = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
+    picker.close()
+  }
+
+  picker = flatpickr(input, {
+    enableTime: true,
+    noCalendar: true,
+    enableSeconds: false,
+    time_24hr: true,
+    dateFormat: 'H:i',
+    minuteIncrement: 1,
+    disableMobile: true,
+    locale: Mandarin,
+    onReady: (_dates, _text, instance) => {
+      // 给时间浮层加标题和「完成」按钮，视觉上更接近完整的弹层选择器。
+      const title = el('div', 'time-popup-title')
+      title.appendChild(makeClockIcon('time-popup-icon'))
+      title.appendChild(el('span', undefined, '选择时间'))
+      const footer = el('div', 'time-popup-footer')
+      const done = el('button', 'time-popup-done', '完成') as HTMLButtonElement
+      done.type = 'button'
+      done.addEventListener('click', () => instance.close())
+      footer.appendChild(done)
+      instance.calendarContainer.prepend(title)
+      instance.calendarContainer.appendChild(footer)
+    },
+    onOpen: () => {
+      activeTimePicker?.()
+      activeTimePicker = closeSelf
+      document.addEventListener('keydown', onEsc, true)
+    },
+    onClose: () => {
+      document.removeEventListener('keydown', onEsc, true)
+      if (activeTimePicker === closeSelf) activeTimePicker = null
+    },
+    onChange: (_dates, text) => {
+      // 秒级残留也在这里截掉，保证控件值始终是 HH:mm。
+      hm = toHmText(text, hm)
+      input.value = hm
+      wrap.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+  })
+
+  const syncPicker = () => {
+    const [h, m] = hm.split(':').map(Number)
+    const moment = new Date()
+    moment.setHours(h, m, 0, 0)
+    picker.setDate(moment, false)
+  }
+  syncPicker()
+
+  return {
+    element: wrap,
+    getValue: () => hm,
+    setValue: (text: string) => {
+      hm = toHmText(text, fallback)
+      input.value = hm
+      syncPicker()
+    },
+    setDisabled: (disabled: boolean) => {
+      input.disabled = disabled
+      if (disabled) picker.close()
+    },
+  }
 }
 
 /** 下一个整点，供「设置」按钮回落使用。 */
@@ -127,7 +224,8 @@ interface DialogFrame {
 function makeFrame(kind: DialogKind, title: string): DialogFrame {
   const container = el(
     'div',
-    'dialog-container' + (kind === 'period' ? ' period' : kind === 'work-config' ? ' config' : ''),
+    'dialog-container'
+      + (kind === 'period' ? ' period' : kind === 'work-config' ? ' config' : kind === 'plan' ? ' plan' : ''),
   )
   const header = el('div', 'dialog-header')
   header.appendChild(el('div', 'dialog-title', title))
@@ -146,6 +244,7 @@ function makeFrame(kind: DialogKind, title: string): DialogFrame {
   container.appendChild(hint)
 
   const close = () => {
+    activeTimePicker?.()
     result(kind, 'cancel')
     void win.hide()
   }
@@ -236,10 +335,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   // ---- 1. 基础设置 ----
   addSection('基础设置')
 
-  const offTime = el('input') as HTMLInputElement
-  offTime.type = 'time'
-  offTime.step = '60'
-  offTime.value = toHmText(cfgStr(cfg, 'work_off_time', '17:00'), '17:00')
+  const offTime = makeTimeControl(cfgStr(cfg, 'work_off_time', '17:00'), '17:00')
 
   const payday = makeNumber(Math.round(cfgNum(cfg, 'work_payday', 15)), 1, 31, 1)
 
@@ -281,7 +377,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   periodHint.textContent = cfgStr(cfg, 'period_visible', 'false') === 'true' ? '面板中显示' : '面板中隐藏'
 
   addGrid([
-    fieldCell('下班时间', offTime),
+    fieldCell('下班时间', offTime.element),
     fieldCell('发薪日（每月）', payday, el('span', 'form-hint', ' 号')),
     fieldCell('节日名称', festivalName),
     fieldCell('节日日期', festivalDate, festivalBtn),
@@ -355,17 +451,14 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   }
   syncCustomRest()
 
-  // 上下班时间：四个一行，压掉一行高度。
-  const timeEdits: Array<[string, HTMLInputElement]> = []
+  // 上下班时间：时 / 分两个下拉，2 列排布保证每个控件都放得下。
+  const timeEdits: Array<[string, TimeControl]> = []
   const timeCell = (key: string, label: string) => {
-    const input = el('input') as HTMLInputElement
-    input.type = 'time'
-    input.step = '60'
-    input.value = toHmText(cfgStr(cfg, key, TIME_DEFAULTS[key]), TIME_DEFAULTS[key])
-    timeEdits.push([key, input])
-    return fieldCell(label, input)
+    const control = makeTimeControl(cfgStr(cfg, key, TIME_DEFAULTS[key]), TIME_DEFAULTS[key])
+    timeEdits.push([key, control])
+    return fieldCell(label, control.element)
   }
-  const timeGrid = el('div', 'field-grid quad')
+  const timeGrid = el('div', 'field-grid')
   timeGrid.appendChild(timeCell('am_start', '上午上班'))
   timeGrid.appendChild(timeCell('am_end', '上午下班'))
   timeGrid.appendChild(timeCell('pm_start', '下午上班'))
@@ -373,10 +466,11 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
   body.appendChild(timeGrid)
 
   // 选「固定金额」时月薪与整组计薪参数一个都用不上，一起置灰。
-  const earnDependent = [salary, customRest, ...timeEdits.map(([, input]) => input)]
   const syncEarnFields = () => {
     const fixed = earnRadios['fixed'].checked
-    for (const control of earnDependent) control.disabled = fixed
+    salary.disabled = fixed
+    customRest.disabled = fixed
+    for (const [, control] of timeEdits) control.setDisabled(fixed)
     restCards.style.opacity = fixed ? '0.5' : ''
     restCards.style.pointerEvents = fixed ? 'none' : ''
   }
@@ -423,7 +517,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
 
   saveBtn.addEventListener('click', () => {
     const values: Record<string, string> = {
-      work_off_time: toHmText(offTime.value, '17:00'),
+      work_off_time: toHmText(offTime.getValue(), '17:00'),
       work_payday: payday.value,
       work_festival_name: festivalName.value.trim(),
       work_festival_date: festivalDate.value,
@@ -436,7 +530,7 @@ function buildWorkConfig(frame: DialogFrame, state: DialogState): void {
       rest_type: Object.entries(restRadios).find(([, radio]) => radio.checked)?.[0] ?? '双休',
       custom_rest_days: customRest.value || '0',
     }
-    for (const [key, input] of timeEdits) values[key] = toHmText(input.value, TIME_DEFAULTS[key])
+    for (const [key, control] of timeEdits) values[key] = toHmText(control.getValue(), TIME_DEFAULTS[key])
     result('work-config', 'save', values)
     void win.hide()
   })
@@ -576,42 +670,67 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
   tipRow.appendChild(titleError)
   body.appendChild(tipRow)
 
-  /** 一个时间输入框 + 一个「清空 / 设置」小按钮。 */
+  /** 日期 + `HH:mm` 时间下拉 + 「清空 / 设置」按钮的一行。 */
   const makeTimeRow = (label: string, tooltip: string) => {
-    const input = el('input') as HTMLInputElement
-    input.type = 'datetime-local'
-    input.step = '60'
-    input.title = tooltip
+    const dateInput = el('input') as HTMLInputElement
+    dateInput.type = 'date'
+    dateInput.title = tooltip
+    dateInput.style.flex = '1'
+    const timeControl = makeTimeControl('00:00', '00:00')
+    timeControl.element.title = tooltip
+    timeControl.element.style.width = '100px'
+    timeControl.element.style.flex = 'none'
     const button = el('button', 'btn-minor') as HTMLButtonElement
+
+    // 对外统一使用存储格式 `YYYY-MM-DD HH:mm`；日期为空视为未设置。
+    const getValue = (): string => {
+      if (!dateInput.value) return ''
+      return `${dateInput.value} ${timeControl.getValue()}`
+    }
+    const setValue = (text: string) => {
+      const [date, time] = (text ?? '').trim().replace('T', ' ').split(/\s+/)
+      const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date ?? '') ? date : ''
+      dateInput.value = validDate
+      timeControl.setValue(validDate ? (time ?? '00:00') : '00:00')
+    }
     const sync = () => {
-      const unset = input.value === ''
-      input.disabled = unset
+      const unset = !dateInput.value
+      dateInput.disabled = unset
+      timeControl.setDisabled(unset)
       button.textContent = unset ? '设置' : '清空'
     }
     button.addEventListener('click', () => {
-      if (input.value) {
-        input.value = ''
-      } else if (!startEdit.input.value) {
+      if (dateInput.value) {
+        dateInput.value = ''
+        timeControl.setValue('00:00')
+      } else if (!startEdit.getValue()) {
         // 已填开始时间时默认给它之后一小时，少改一次。
-        input.value = toDateTimeInput(nextWholeHour())
+        setValue(logic.formatPlanTime(nextWholeHour()))
       } else {
-        const base = new Date(startEdit.input.value)
+        const base = logic.parsePlanTime(startEdit.getValue()) ?? nextWholeHour()
         base.setHours(base.getHours() + 1)
-        input.value = toDateTimeInput(base)
+        setValue(logic.formatPlanTime(base))
       }
       sync()
       syncStatusHint()
       // 闭包在点击时才执行，此时 timeError 已初始化，无 TDZ 问题。
       timeError.textContent = ''
     })
+    // 清掉日期时时间复位并禁用，避免看起来还设置着时间。
+    dateInput.addEventListener('change', () => {
+      if (!dateInput.value) timeControl.setValue('00:00')
+      sync()
+      syncStatusHint()
+    })
     // 注意不能直接传 syncStatusHint：它声明在下方，makeTimeRow 执行时
     // 直接取值会触发 TDZ ReferenceError，整个计划弹窗渲染失败。
-    input.addEventListener('change', () => syncStatusHint())
+    timeControl.element.addEventListener('change', () => syncStatusHint())
     const row = makeFormRow(label)
-    row.body.appendChild(input)
+    row.body.appendChild(dateInput)
+    row.body.appendChild(timeControl.element)
     row.body.appendChild(button)
     body.appendChild(row.row)
-    return { input, sync }
+    return { getValue, setValue, sync, dateInput, element: timeControl.element }
   }
 
   const startEdit = makeTimeRow('开始时间:', '留空表示不设开始时间，该条直接算进行中')
@@ -622,11 +741,13 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
   const timeErrorRow = el('div', 'field-error-row')
   timeErrorRow.appendChild(timeError)
   body.appendChild(timeErrorRow)
-  // 任一时间改动即清掉旧错误。
+  // 任一时间改动即清掉旧错误（change 从日期输入或时分下拉冒泡上来）。
   for (const edit of [startEdit, endEdit]) {
-    edit.input.addEventListener('change', () => {
-      timeError.textContent = ''
-    })
+    for (const node of [edit.dateInput, edit.element]) {
+      node.addEventListener('change', () => {
+        timeError.textContent = ''
+      })
+    }
   }
 
   // 状态：没有下拉可挑，一行小字写出当前会显示成什么状态。
@@ -676,8 +797,8 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
         : `将改为「${label}」，保存后生效`
       return
     }
-    const start = fromDateTimeInput(startEdit.input.value)
-    const end = fromDateTimeInput(endEdit.input.value)
+    const start = startEdit.getValue()
+    const end = endEdit.getValue()
     if (!start && !end) {
       statusHint.textContent = '填好时间后按当前时刻自动推导状态'
       return
@@ -688,11 +809,11 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
 
   // 回填现有内容；新增态默认从下一个整点开始。
   if (plan) {
-    startEdit.input.value = toDateTimeInputText(plan.start)
-    endEdit.input.value = toDateTimeInputText(plan.end)
+    startEdit.setValue(plan.start)
+    endEdit.setValue(plan.end)
     manualStatus = loadedStatus
   } else {
-    startEdit.input.value = toDateTimeInput(nextWholeHour())
+    startEdit.setValue(logic.formatPlanTime(nextWholeHour()))
   }
   startEdit.sync()
   endEdit.sync()
@@ -720,8 +841,8 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
       titleEdit.focus()
       return
     }
-    const start = startEdit.input.value
-    const end = endEdit.input.value
+    const start = startEdit.getValue()
+    const end = endEdit.getValue()
     if (!start && !end) {
       timeError.textContent = '开始时间与结束时间至少要填一个。'
       return
@@ -732,8 +853,8 @@ function buildPlan(frame: DialogFrame, state: DialogState): void {
     }
     result('plan', 'save', {
       title: titleEdit.value.trim(),
-      start: fromDateTimeInput(start),
-      end: fromDateTimeInput(end),
+      start,
+      end,
       status: manualStatus,
     })
     void win.hide()
@@ -909,6 +1030,7 @@ function buildPeriod(frame: DialogFrame, state: DialogState): void {
 
 async function showDialog(state: DialogState): Promise<void> {
   try {
+    activeTimePicker?.()
     root.innerHTML = ''
     const frame = makeFrame(state.kind, titleOf(state))
     if (state.kind === 'work-config') buildWorkConfig(frame, state)
@@ -981,5 +1103,6 @@ void listen<DialogState>('dialog-state', (event) => {
 
 // pet 窗口请求收起弹窗（切页 / 切模式 / 关闭生理期开关）。
 void listen('dialog-close', () => {
+  activeTimePicker?.()
   void win.hide()
 })

@@ -7,6 +7,8 @@
  * 数据，增删改与落盘都在主窗口」的分工一致。
  */
 
+@import 'flatpickr/dist/flatpickr.min.css';
+
 html,
 body {
   margin: 0;
@@ -26,6 +28,7 @@ body {
 }
 
 .dialog-container {
+  position: relative;
   background: rgba(255, 255, 255, 246);
   border-radius: 16px;
   padding: 20px;
@@ -39,6 +42,11 @@ body {
 
 .dialog-container.config {
   width: 420px;
+}
+
+/* 计划弹窗：日期 + 时/分下拉 + 按钮同排，需要比默认宽一些 */
+.dialog-container.plan {
+  width: 440px;
 }
 
 /* 生理期弹窗是粉色系 */
@@ -161,7 +169,8 @@ textarea:focus {
   background: #fff;
 }
 
-input:disabled {
+input:disabled,
+select:disabled {
   color: #9aa1a8;
   background: #f2f3f5;
 }
@@ -175,6 +184,190 @@ textarea {
 
 input[type='number'] {
   width: 110px;
+}
+
+/* 分钟精度时间选择：只读输入框 + 时钟图标，点击弹出 flatpickr 时间浮层。
+ * Chromium/WebView2 的原生 time 控件会按系统时间格式强制显示秒，无法隐藏。 */
+.time-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.time-field input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 26px;
+  cursor: pointer;
+}
+
+.time-icon {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  width: 14px;
+  height: 14px;
+  color: #8a9096;
+  pointer-events: none;
+}
+
+.time-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* flatpickr 时间浮层：白底、无阴影，时/分做成两个圆角步进框。
+ * 提高选择器权重，避免被组件默认样式覆盖。 */
+body .flatpickr-calendar {
+  border: 1px solid #dde2e8;
+  border-radius: 14px;
+  box-shadow: none;
+  font-family: inherit;
+  overflow: hidden;
+}
+
+body .flatpickr-calendar:before,
+body .flatpickr-calendar:after {
+  display: none;
+}
+
+body .flatpickr-calendar.noCalendar {
+  width: 208px;
+}
+
+body .flatpickr-calendar .time-popup-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 12px 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: #8a9096;
+  text-align: left;
+}
+
+body .flatpickr-calendar .time-popup-icon {
+  display: flex;
+  width: 12px;
+  height: 12px;
+  color: #8a9096;
+}
+
+body .flatpickr-calendar .time-popup-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  max-height: none;
+  line-height: normal;
+  padding: 8px 12px 6px;
+  border-top: 0;
+  overflow: visible;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper {
+  flex: 1;
+  width: auto;
+  height: 44px;
+  border-radius: 9px;
+  background: #f3f5f8;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper:hover {
+  background: #eef1f5;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper:focus-within {
+  background: #edf5fe;
+  box-shadow: inset 0 0 0 1px #9cc8f2;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time input,
+body .flatpickr-calendar.noCalendar .flatpickr-time input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time input:focus {
+  background: transparent;
+}
+
+/* 打开时组件会自动选中小时数字，去掉浏览器默认的蓝色选区。 */
+body .flatpickr-calendar.noCalendar .flatpickr-time input::selection {
+  background: transparent;
+  color: inherit;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .flatpickr-time-separator {
+  flex: none;
+  width: auto;
+  float: none;
+  font-size: 17px;
+  font-weight: 600;
+  color: #b0b6bd;
+  align-self: center;
+}
+
+/* 上/下调整箭头：常驻弱化显示，悬停时加深，提示可步进。 */
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper span {
+  right: 4px;
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper:hover span {
+  opacity: 0.8;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper span.arrowUp:after {
+  border-bottom-color: #8a9096;
+}
+
+body .flatpickr-calendar.noCalendar .flatpickr-time .numInputWrapper span.arrowDown:after {
+  border-top-color: #8a9096;
+}
+
+body .flatpickr-calendar .time-popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 10px;
+  border-top: 1px solid #eef0f3;
+  margin-top: 2px;
+}
+
+body .flatpickr-calendar .time-popup-done {
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 16px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #fff;
+  background: #4a90d9;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+body .flatpickr-calendar .time-popup-done:hover {
+  background: #3d7fc4;
 }
 
 /* 开关 */
@@ -354,7 +547,8 @@ input[type='number'] {
 }
 
 .field-cell-body input,
-.field-cell-body select {
+.field-cell-body select,
+.field-cell-body .time-field {
   flex: 1;
 }
 
@@ -450,6 +644,11 @@ input[type='number'] {
 .dialog-container.config .field-cell-body input,
 .dialog-container.config .field-cell-body select {
   padding: 4px 8px;
+}
+
+/* 覆盖上面的 8px 内边距：右侧给时钟图标留位置。 */
+.dialog-container.config .field-cell-body .time-field input {
+  padding: 4px 24px 4px 8px;
 }
 
 .dialog-container.config .radio-cards {

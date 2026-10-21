@@ -9,7 +9,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.5.0"
+    "@tauri-apps/api": "^2.5.0",
+    "flatpickr": "^4.6.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",
